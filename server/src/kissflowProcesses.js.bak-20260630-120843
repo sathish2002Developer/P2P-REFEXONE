@@ -1,0 +1,24 @@
+const { getConfig } = require("./config");
+const { kfRequest } = require("./kissflowClient");
+
+function processItemDetailPath(processId, instanceId) {
+  const config = getConfig();
+  return `/process/2/${config.kissflow.accountId}/admin/${processId}/${instanceId}`;
+}
+
+async function getProcessItem(processId, instanceId) {
+  return kfRequest(processItemDetailPath(processId, instanceId), {
+    method: "GET"
+  });
+}
+
+async function getPurchaseOrderInstance(instanceId) {
+  const config = getConfig();
+  return getProcessItem(config.kissflowModels.purchaseOrderProcessId, instanceId);
+}
+
+module.exports = {
+  processItemDetailPath,
+  getProcessItem,
+  getPurchaseOrderInstance
+};

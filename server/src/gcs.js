@@ -1,0 +1,90 @@
+const { Storage } = require("@google-cloud/storage");
+const { getConfig } = require("./config");
+
+function getStorageClient() {
+  const config = getConfig();
+  return {
+    config,
+    storage: new Storage({ projectId: config.gcp.projectId })
+  };
+}
+
+async function uploadPdfBuffer({ buffer, objectName, metadata = {} }) {
+  if (!buffer || !Buffer.isBuffer(buffer)) {
+    throw new Error("uploadPdfBuffer requires a PDF buffer");
+  }
+
+  if (!objectName || typeof objectName !== "string") {
+    throw new Error("uploadPdfBuffer requires objectName");
+  }
+
+  const { config, storage } = getStorageClient();
+  const bucket = storage.bucket(config.gcp.bucketName);
+  const file = bucket.file(objectName);
+
+  await file.save(buffer, {
+    resumable: false,
+    contentType: "application/pdf",
+    metadata: {
+      cacheControl: "no-store",
+      metadata
+    }
+  });
+
+  const [signedUrl] = await file.getSignedUrl({
+    version: "v4",
+    action: "read",
+    expires: Date.now() + config.pdf.signedUrlTtlMinutes * 60 * 1000
+  });
+
+  return {
+    bucket: config.gcp.bucketName,
+    objectName,
+    gcsUri: `gs://${config.gcp.bucketName}/${objectName}`,
+    signedUrl
+  };
+}
+
+async function downloadBuffer(objectName) {
+  if (!objectName || typeof objectName !== "string") {
+    throw new Error("downloadBuffer requires objectName");
+  }
+
+  const { config, storage } = getStorageClient();
+  const file = storage.bucket(config.gcp.bucketName).file(objectName);
+  const [buffer] = await file.download();
+
+  return {
+    bucket: config.gcp.bucketName,
+    objectName,
+    buffer
+  };
+}
+
+async function findLatestGeneratedPdfObject(instanceId) {
+  if (!instanceId) throw new Error("findLatestGeneratedPdfObject requires instanceId");
+
+  const { config, storage } = getStorageClient();
+  const prefix = `generated/${config.service.appEnv}/${instanceId}/`;
+  const [files] = await storage.bucket(config.gcp.bucketName).getFiles({ prefix });
+
+  const pdfs = files
+    .filter((file) => file.name.toLowerCase().endsWith(".pdf"))
+    .sort((a, b) => String(b.name).localeCompare(String(a.name)));
+
+  if (!pdfs.length) {
+    throw new Error(`No generated PDF found in GCS for instance_id: ${instanceId}`);
+  }
+
+  return {
+    bucket: config.gcp.bucketName,
+    objectName: pdfs[0].name,
+    gcsUri: `gs://${config.gcp.bucketName}/${pdfs[0].name}`
+  };
+}
+
+module.exports = {
+  uploadPdfBuffer,
+  downloadBuffer,
+  findLatestGeneratedPdfObject
+};
