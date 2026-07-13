@@ -115,8 +115,8 @@ function mapPurchaseOrderTokens(po = {}) {
     mode_of_shipment: po.Shipment_Mode || "",
     grand_total: cleanCurrency(po.Grand_Total || po.Total || ""),
     subtotal: cleanCurrency(po.Subtotal || po.Total || ""),
-    total_tax_amount: cleanCurrency(po.Total_Tax_Amount || ""),
-    amount_in_words: numberToWords(po.Grand_Total || po.Total || 0),
+    total_tax_amount: cleanCurrency(po.Total_Tax_amount || ""),
+    amount_in_words: numberToWords(cleanCurrency(po.Grand_Total || po.Total || 0)),
     scope_of_work: po.Comments || pr.Business_Justification || "",
     supply_work_schedule: po.Delivery_Date_1 ? `Delivery Date: ${formatDateDDMMYYYY(po.Delivery_Date_1)}` : "",
     payment_terms: po.Payment_Terms_2 || "",
@@ -165,121 +165,56 @@ function optionalRefLine(refNo, refDate) {
 function buildPriceScheduleHtml(lineItems = [], totals = {}) {
   const rowsHtml = lineItems.map((item) => `
     <tr>
-      <td class="seq">${escapeHtml(item.si_no || "")}</td>
-      <td>
-        <strong>${escapeHtml(item.item_Name || "")}</strong>
-        ${item.description ? `<br>${escapeHtml(item.description)}` : ""}
-      </td>
-      <td class="center">${escapeHtml(item.uom || "-")}</td>
-      <td class="num">${escapeHtml(item.quantity || "")}</td>
-      <td class="num">${escapeHtml(item.unit_rate || "")}</td>
+      <td class="seq">${escapeHtml(item.si_no)}</td>
+     <td>
+    <strong>${escapeHtml(item.item_Name)}</strong><br>
+    ${escapeHtml(item.description)}
+</td>
+      <td>${escapeHtml(item.uom || "-")}</td>
+      <td class="num">${escapeHtml(item.quantity)}</td>
+      <td class="num">${escapeHtml(item.unit_rate)}</td>
       <td class="num">${escapeHtml(item.tax_percentage || "-")}</td>
       <td class="num">${escapeHtml(item.tax_amount || "0")}</td>
-      <td class="num">${escapeHtml(item.total_amount || "")}</td>
+      <td class="num">${escapeHtml(item.total_amount)}</td>
     </tr>
   `).join("");
 
   return `
-<style>
-.price-title{
-    text-align:center;
-    font-size:20px;
-    font-weight:bold;
-    font-family:Arial, Helvetica, sans-serif;
-    text-transform:uppercase;
-    margin:10px 0;
-}
-
-.price-table{
-    width:100%;
-    border-collapse:collapse;
-    border:2px solid #000;
-    font-family:Arial, Helvetica, sans-serif;
-    font-size:13px;
-}
-
-.price-table th,
-.price-table td{
-    border:1px solid #000;
-    padding:6px;
-    vertical-align:top;
-}
-
-.price-table th{
-    font-weight:bold;
-    text-align:center;
-    background:#fff;
-}
-
-.seq{
-    width:50px;
-    text-align:center;
-}
-
-.center{
-    text-align:center;
-}
-
-.num{
-    text-align:right;
-}
-
-.total-label{
-    font-weight:bold;
-    text-align:left;
-}
-
-.amount-words{
-    font-weight:bold;
-}
-</style>
-
-<div class="price-title">PRICE SCHEDULE</div>
-
-<table class="price-table">
-    <thead>
+    <h2>PRICE SCHEDULE</h2>
+    <table class="price-table">
+      <thead>
         <tr>
-            <th>SI.No</th>
-            <th>Description Of Work</th>
-            <th>UOM</th>
-            <th>Qty</th>
-            <th>Unit Rate Rs.</th>
-            <th>Tax %</th>
-            <th>Tax Amount</th>
-            <th>TOTAL Amt Rs.</th>
+          <th class="seq">SI.No</th>
+          <th>Description Of Work</th>
+          <th>UOM</th>
+          <th>Qty</th>
+          <th>Unit Rate Rs.</th>
+          <th>Tax Percentage</th>
+          <th>Tax Amount</th>
+          <th>TOTAL Amt Rs.</th>
         </tr>
-    </thead>
-
-    <tbody>
+      </thead>
+      <tbody>
         ${rowsHtml}
-
         <tr>
-            <td colspan="7" class="total-label">SubTotal</td>
-            <td class="num">${escapeHtml(totals.subtotal || "")}</td>
+          <td colspan="7" class="total-label">SubTotal</td>
+          <td class="num">${escapeHtml(totals.subtotal || "")}</td>
         </tr>
-
         <tr>
-            <td colspan="7" class="total-label">
-                GST @ ${escapeHtml(totals.tax_percentage || "18")}% Extra
-            </td>
-            <td class="num">${escapeHtml(totals.total_tax_amount || "0")}</td>
+          <td colspan="7" class="total-label">Add: GST extra Amount</td>
+          <td class="num">${escapeHtml(totals.total_tax_amount || "0")}</td>
         </tr>
-
         <tr>
-            <td colspan="7" class="total-label">Grand Total</td>
-            <td class="num"><strong>${escapeHtml(totals.grand_total || "")}</strong></td>
+          <td colspan="7" class="total-label">GrandTotal</td>
+          <td class="num">${escapeHtml(totals.grand_total || "")}</td>
         </tr>
-
         <tr>
-            <td colspan="2" class="amount-words">Amount In Words:</td>
-            <td colspan="6" class="amount-words">
-                ${escapeHtml(totals.amount_in_words || "")}
-            </td>
+          <td colspan="2" class="total-label">Amount In Words:</td>
+          <td colspan="6">${escapeHtml(totals.amount_in_words || "")}</td>
         </tr>
-
-    </tbody>
-</table>
-`;
+      </tbody>
+    </table>
+  `;
 }
 
 
