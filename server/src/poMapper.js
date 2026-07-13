@@ -27,10 +27,69 @@ function formatDateDDMMYYYY(value) {
   return raw;
 }
 
+function numberToWords(num) {
+  if (num === 0) return "Zero Only";
+
+  const ones = [
+      "", "One", "Two", "Three", "Four", "Five", "Six", "Seven",
+      "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen",
+      "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"
+  ];
+
+  const tens = [
+      "", "", "Twenty", "Thirty", "Forty", "Fifty",
+      "Sixty", "Seventy", "Eighty", "Ninety"
+  ];
+
+  function convert(n) {
+      let str = "";
+
+      if (n >= 100) {
+          str += ones[Math.floor(n / 100)] + " Hundred ";
+          n %= 100;
+      }
+
+      if (n >= 20) {
+          str += tens[Math.floor(n / 10)] + " ";
+          n %= 10;
+      }
+
+      if (n > 0) {
+          str += ones[n] + " ";
+      }
+
+      return str.trim();
+  }
+
+  let result = "";
+
+  const crore = Math.floor(num / 10000000);
+  num %= 10000000;
+
+  const lakh = Math.floor(num / 100000);
+  num %= 100000;
+
+  const thousand = Math.floor(num / 1000);
+  num %= 1000;
+
+  const hundred = num;
+
+  if (crore) result += convert(crore) + " Crore ";
+  if (lakh) result += convert(lakh) + " Lakh ";
+  if (thousand) result += convert(thousand) + " Thousand ";
+  if (hundred) result += convert(hundred);
+
+  return result.trim() + " Only";
+}
+
+
+// One Crore Twenty Three Lakh Forty Five Thousand Six Hundred Seventy Eight Only
+
 function mapPurchaseOrderTokens(po = {}) {
-  const vendor = po.Vendor__Details || {};
-  console.log (po,"Sathish")
+  const vendor = po.Vendor_Contact_Person || po.Vendor__Details || {};
   const pr = po.PR_Details_1 || {};
+
+  
 
   return {
     po_number: po.Purchase_Order_Number || po.Purchase_Order_Number_1 || po.Name || "",
@@ -43,20 +102,20 @@ function mapPurchaseOrderTokens(po = {}) {
     seller_contact_person: vendor.Contact_Person_Name || "",
     seller_email: vendor.Email_ID || po.Vendor_Email || "",
     seller_phone: vendor.Mobile_Number || "",
-    vendor_code: po.Vendor_code || po.Vendor_code_1 || po.Vendor_Code_PR || "",
-    ref_no: po.PR_Number || "",
-    ref_date: formatDateDDMMYYYY(po.PR_Required_Date || pr.PR_Date || ""),
-    subject: pr.PR_Title || po.PR__Title || po.Comments || "",
+    vendor_code: po.Vendor_Code_PR || vendor.Vendor_ID || po.Vendor_code || po.Vendor_code_1 || "",
+    ref_no: po.Quote_Number || po.PR_Number || "",
+    ref_date: formatDateDDMMYYYY(po.Quote_Date || po.PR_Required_Date || pr.PR_Date || ""),
+    subject: po.PO_Title || pr.PR_Title || po.PR__Title || po.Comments || "",
     // Canonical source for letterhead selection:
     // Company_Letterhead_Master_A00.Company_Code must match PO.Entity.
     // PR entity fields are fallback only.
     buyer_company_code: po.LoggedUserEntity || po.Entity_1 || "",
-    buyer_company_name: po.Entity || po.PR_Entity_code || po.PR_Entity || po.PR_Entity_1 || "",
+    buyer_company_name: po.LoggedUserEntity || po.Entity || po.PR_Entity_code || po.PR_Entity || po.PR_Entity_1 || "",
     mode_of_shipment: po.Shipment_Mode || "",
     grand_total: cleanCurrency(po.Grand_Total || po.Total || ""),
     subtotal: cleanCurrency(po.Subtotal || po.Total || ""),
     total_tax_amount: cleanCurrency(po.Total_Tax_Amount || ""),
-    amount_in_words: po.Amount_In_Words || "",
+    amount_in_words: numberToWords(po.Grand_Total || po.Total || 0),
     scope_of_work: po.Comments || pr.Business_Justification || "",
     supply_work_schedule: po.Delivery_Date_1 ? `Delivery Date: ${formatDateDDMMYYYY(po.Delivery_Date_1)}` : "",
     payment_terms: po.Payment_Terms_2 || "",
@@ -69,26 +128,47 @@ function mapPurchaseOrderTokens(po = {}) {
   };
 }
 
-function mapLineItems(po = {}, lineItemsTableKey = "Table::Model_D1wv4eeZCS") {
+function mapLineItems(po = {}, lineItemsTableKey = "Table::Copy_PR_Line_Items") {
   const rows = po[lineItemsTableKey] || [];
 
   return rows.map((row, index) => ({
     si_no: index + 1,
-    description: row.Item_Description || row.Description || row._id || "",
-    uom: row.UOM || row.Unit || "",
-    quantity: row.Quantity || "",
-    unit_rate: cleanCurrency(row.Unit_Price || ""),
-    tax_percentage: row.Tax_Percentage || row.Tax || "",
-    tax_amount: cleanCurrency(row.Tax_Amount_1 || row.Tax_Amount || ""),
-    total_amount: cleanCurrency(row.Total_Cost || "")
+    item_Name: row.Item_Name_3 || row.Item_Name_2 || row.Item_Name_1 || row.Item_Name || "",
+    description: row.Description_1 || row._id || "",
+    uom: row.UOM_1 || row.UOM || row.UOM_2 || "",
+    quantity: row.Qty_2|| "",
+    unit_rate: cleanCurrency(row.Estimated_Unit_Price || row.Unit_Price_2 || row.Unit_Price_1 || row.Unit_Price || ""),
+    tax_percentage: row.GST_1 || row.Tax_Percentage_2 || row.Tax_Percentage_1 || row.Tax_Percentage || row.Tax || "",
+    tax_amount: cleanCurrency(row.TAX_Amount || row.Tax_Amount_2 || row.Tax_Amount_1 || row.Tax_Amount || ""),
+    total_amount: cleanCurrency(row.Total_Cost_3 || row.Total_Cost_2 || row.Total_Cost_1 || row.Total_Cost || "")
   }));
+}
+
+function optionalPoLine(label, value) {
+  const clean = String(value ?? "").trim();
+  if (!clean) return "";
+  return `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(clean)}</p>`;
+}
+
+function optionalRefLine(refNo, refDate) {
+  const cleanRef = String(refNo ?? "").trim();
+  const cleanDate = String(refDate ?? "").trim();
+  if (!cleanRef && !cleanDate) return "";
+  if (cleanRef && cleanDate) {
+    return `<p><strong>Ref.No:</strong> ${escapeHtml(cleanRef)} / <strong>Date:</strong> ${escapeHtml(cleanDate)}</p>`;
+  }
+  if (cleanRef) return `<p><strong>Ref.No:</strong> ${escapeHtml(cleanRef)}</p>`;
+  return `<p><strong>Date:</strong> ${escapeHtml(cleanDate)}</p>`;
 }
 
 function buildPriceScheduleHtml(lineItems = [], totals = {}) {
   const rowsHtml = lineItems.map((item) => `
     <tr>
       <td class="seq">${escapeHtml(item.si_no)}</td>
-      <td>${escapeHtml(item.description)}</td>
+     <td>
+    <strong>${escapeHtml(item.item_Name)}</strong><br>
+    ${escapeHtml(item.description)}
+</td>
       <td>${escapeHtml(item.uom || "-")}</td>
       <td class="num">${escapeHtml(item.quantity)}</td>
       <td class="num">${escapeHtml(item.unit_rate)}</td>
@@ -177,7 +257,7 @@ function buildSpecialNotesHtml(po = {}, tokens = {}) {
 
       <p><strong>For ${escapeHtml(buyerCompanyName)},</strong></p>
 
-      <div style="height:35px;">${escapeHtml(po.SCM_Manager_Signature || "SCM_Manager_Signature")}</div>
+      <div class="scm-signature-slot"></div>
 
       <p>
         <strong>Authorized Signatory</strong><br>
@@ -225,15 +305,15 @@ function buildPurchaseOrderBodyHtml(po = {}, config = {}) {
         ${escapeHtml(tokens.seller_company_name)}<br>
         ${escapeHtml(tokens.seller_registered_address)}
       </p>
-      <p><strong>Vendor Code:</strong> ${escapeHtml(tokens.vendor_code)}</p>
-      <p><strong>GST No:</strong> ${escapeHtml(tokens.seller_gst_no)}</p>
-      <p><strong>PAN No:</strong> ${escapeHtml(tokens.seller_pan_no)}</p>
-      <p><strong>MSME Details:</strong> ${escapeHtml(tokens.seller_msme_no)}</p>
-      <p><strong>Ref.No:</strong> ${escapeHtml(tokens.ref_no)} / <strong>Date:</strong> ${escapeHtml(tokens.ref_date)}</p>
-      <p><strong>Subject:</strong> ${escapeHtml(tokens.subject)}</p>
-      <p><strong>Contact Person:</strong> ${escapeHtml(tokens.seller_contact_person)}</p>
-      <p><strong>Email of the contact person:</strong> ${escapeHtml(tokens.seller_email)}</p>
-      <p><strong>Mobile number of the contact person:</strong> ${escapeHtml(tokens.seller_phone)}</p>
+      ${optionalPoLine("Vendor Code", tokens.vendor_code)}
+      ${optionalPoLine("GST No", tokens.seller_gst_no)}
+      ${optionalPoLine("PAN No", tokens.seller_pan_no)}
+      ${optionalPoLine("MSME Details", tokens.seller_msme_no)}
+      ${optionalRefLine(tokens.ref_no, tokens.ref_date)}
+      ${optionalPoLine("Subject", tokens.subject)}
+      ${optionalPoLine("Contact Person", tokens.seller_contact_person)}
+      ${optionalPoLine("Email of the contact person", tokens.seller_email)}
+      ${optionalPoLine("Mobile number of the contact person", tokens.seller_phone)}
     </div>
   `;
 
