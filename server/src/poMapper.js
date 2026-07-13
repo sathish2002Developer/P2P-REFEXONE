@@ -28,6 +28,7 @@ function formatDateDDMMYYYY(value) {
 }
 
 function numberToWords(num) {
+
   if (num === 0) return "Zero Only";
 
   const ones = [
@@ -140,7 +141,7 @@ function mapLineItems(po = {}, lineItemsTableKey = "Table::Copy_PR_Line_Items") 
     unit_rate: cleanCurrency(row.Estimated_Unit_Price || row.Unit_Price_2 || row.Unit_Price_1 || row.Unit_Price || ""),
     tax_percentage: row.GST_1 || row.Tax_Percentage_2 || row.Tax_Percentage_1 || row.Tax_Percentage || row.Tax || "",
     tax_amount: cleanCurrency(row.TAX_Amount || row.Tax_Amount_2 || row.Tax_Amount_1 || row.Tax_Amount || ""),
-    total_amount: cleanCurrency(row.Total_Cost_3 || row.Total_Cost_2 || row.Total_Cost_1 || row.Total_Cost || "")
+    total_amount: cleanCurrency(row.Line_Total_1 || row.Total_Cost_2 || row.Total_Cost_1 || row.Total_Cost || "")
   }));
 }
 
