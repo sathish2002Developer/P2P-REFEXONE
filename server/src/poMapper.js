@@ -27,62 +27,82 @@ function formatDateDDMMYYYY(value) {
   return raw;
 }
 
-function numberToWords(num) {
+function numberToWords(amount) {
+    amount = String(amount).replace(/,/g, ""); // Remove commas
+    amount = parseFloat(amount);
 
-  if (num === 0) return "Zero Only";
+    if (isNaN(amount)) return "";
 
-  const ones = [
-      "", "One", "Two", "Three", "Four", "Five", "Six", "Seven",
-      "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen",
-      "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"
-  ];
+    const rupees = Math.floor(amount);
+    const paise = Math.round((amount - rupees) * 100);
 
-  const tens = [
-      "", "", "Twenty", "Thirty", "Forty", "Fifty",
-      "Sixty", "Seventy", "Eighty", "Ninety"
-  ];
+    const ones = [
+        "", "One", "Two", "Three", "Four", "Five", "Six", "Seven",
+        "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen",
+        "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"
+    ];
 
-  function convert(n) {
-      let str = "";
+    const tens = [
+        "", "", "Twenty", "Thirty", "Forty", "Fifty",
+        "Sixty", "Seventy", "Eighty", "Ninety"
+    ];
 
-      if (n >= 100) {
-          str += ones[Math.floor(n / 100)] + " Hundred ";
-          n %= 100;
-      }
+    function convert(n) {
+        let str = "";
 
-      if (n >= 20) {
-          str += tens[Math.floor(n / 10)] + " ";
-          n %= 10;
-      }
+        if (n >= 100) {
+            str += ones[Math.floor(n / 100)] + " Hundred ";
+            n %= 100;
+        }
 
-      if (n > 0) {
-          str += ones[n] + " ";
-      }
+        if (n >= 20) {
+            str += tens[Math.floor(n / 10)] + " ";
+            n %= 10;
+        }
 
-      return str.trim();
-  }
+        if (n > 0) {
+            str += ones[n] + " ";
+        }
 
-  let result = "";
+        return str.trim();
+    }
 
-  const crore = Math.floor(num / 10000000);
-  num %= 10000000;
+    function convertIndian(num) {
+        let result = "";
 
-  const lakh = Math.floor(num / 100000);
-  num %= 100000;
+        const crore = Math.floor(num / 10000000);
+        num %= 10000000;
 
-  const thousand = Math.floor(num / 1000);
-  num %= 1000;
+        const lakh = Math.floor(num / 100000);
+        num %= 100000;
 
-  const hundred = num;
+        const thousand = Math.floor(num / 1000);
+        num %= 1000;
 
-  if (crore) result += convert(crore) + " Crore ";
-  if (lakh) result += convert(lakh) + " Lakh ";
-  if (thousand) result += convert(thousand) + " Thousand ";
-  if (hundred) result += convert(hundred);
+        const hundred = num;
 
-  return result.trim() + " Only";
+        if (crore) result += convert(crore) + " Crore ";
+        if (lakh) result += convert(lakh) + " Lakh ";
+        if (thousand) result += convert(thousand) + " Thousand ";
+        if (hundred) result += convert(hundred);
+
+        return result.trim();
+    }
+
+    let words = "";
+
+    if (rupees === 0) {
+        words = "Zero Rupees";
+    } else {
+        words = convertIndian(rupees) + " Rupees";
+    }
+
+    if (paise > 0) {
+        words += " and " + convert(paise) + " Paise";
+    }
+
+    return words + " Only";
 }
-
 
 // One Crore Twenty Three Lakh Forty Five Thousand Six Hundred Seventy Eight Only
 
@@ -111,7 +131,7 @@ function mapPurchaseOrderTokens(po = {}) {
     // Company_Letterhead_Master_A00.Company_Code must match PO.Entity.
     // PR entity fields are fallback only.
     buyer_company_code: po.LoggedUserEntity || po.Entity_1 || "",
-    buyer_company_name: po.LoggedUserEntity || po.Entity || po.PR_Entity_code || po.PR_Entity || po.PR_Entity_1 || "",
+    buyer_company_name: po.LoggedUserEntity || po.Entity_1 || po.PR_Entity_code || po.PR_Entity || po.PR_Entity_1 || "",
     mode_of_shipment: po.Shipment_Mode || "",
     grand_total: cleanCurrency(po.Grand_Total || po.Total || ""),
     subtotal: cleanCurrency(po.Subtotal || po.Total || ""),
