@@ -55,36 +55,34 @@ function buildTermsTable(rows = [], data = {}) {
   const sorted = sortedRows(rows);
   if (!sorted.length) return "";
 
-  return sorted.map((row, index) => `
-    <section class="terms-item-section">
-      ${index === 0 ? '<div class="terms-page-title">Terms and Conditions</div>' : ""}
-      <table class="terms terms-item-table">
+  return `
+    <section class="terms-section">
+      <table class="terms">
+        <caption>Terms and Conditions</caption>
         <tbody>
-          ${renderSingleTermsRow(row, data)}
+          ${renderTermsRows(sorted, data)}
         </tbody>
       </table>
     </section>
-  `).join("");
+  `;
 }
 
 function buildAnnexureITable(rows = [], data = {}) {
   const sorted = sortedRows(rows);
   if (!sorted.length) return "";
 
-  return sorted.map((row, index) => `
-    <section class="annexure-item-section">
-      ${index === 0 ? `
-        <h2 class="annexure-title">ANNEXURE-I</h2>
-        <h3 class="annexure-sub">COMMERCIAL TERMS AND CONDITIONS</h3>
-      ` : ""}
-      <table class="terms annexure-table annexure-item-table">
+  return `
+    <section class="annexure-section">
+      <h2 class="annexure-title">ANNEXURE-I</h2>
+      <h3 class="annexure-sub">COMMERCIAL TERMS AND CONDITIONS</h3>
+      <table class="terms annexure-table">
         <thead>${annexureHeadRow}</thead>
         <tbody>
-          ${renderSingleAnnexureRow(row, data)}
+          ${renderAnnexureRows(sorted, data)}
         </tbody>
       </table>
     </section>
-  `).join("");
+  `;
 }
 
 function buildPoStyles(_footerReserveMm = 50) {
@@ -107,8 +105,8 @@ function buildPoStyles(_footerReserveMm = 50) {
     }
 
     .po-body,
-    .terms-item-section,
-    .annexure-item-section,
+    .terms-section,
+    .annexure-section,
     .special-notes-section,
     .vendor-ack-section {
       padding-bottom: 2mm;
@@ -123,28 +121,6 @@ function buildPoStyles(_footerReserveMm = 50) {
       print-color-adjust: exact;
     }
 
-    table.terms-item-table,
-    table.annexure-item-table {
-      page-break-inside: auto;
-      break-inside: auto;
-      margin: 0;
-    }
-
-    table.annexure-item-table thead {
-      display: table-header-group;
-    }
-
-    .terms-page-title {
-      font-weight: bold;
-      padding: 6px;
-      border: 1px solid #000;
-      background: #f2f2f2;
-      text-align: center;
-      margin-bottom: 0;
-      box-decoration-break: clone;
-      -webkit-box-decoration-break: clone;
-    }
-
     table.price th,
     table.price td,
     table.terms th,
@@ -156,8 +132,7 @@ function buildPoStyles(_footerReserveMm = 50) {
       -webkit-box-decoration-break: clone;
     }
 
-    table.terms td.desc-col,
-    table.terms th.desc-col {
+    table.terms td.desc-col {
       page-break-inside: auto;
       break-inside: auto;
     }
@@ -227,8 +202,8 @@ function buildPoStyles(_footerReserveMm = 50) {
     .amount-words .label { font-weight: bold; white-space: nowrap; margin-right: 10px; }
     .amount-words .value { font-weight: bold; text-align: right; }
 
-    .terms-item-section,
-    .annexure-item-section,
+    .terms-section,
+    .annexure-section,
     .special-notes-section,
     .vendor-ack-section {
       page-break-before: always;
@@ -265,17 +240,7 @@ function buildPoStyles(_footerReserveMm = 50) {
     table.terms th { background: #f2f2f2; }
     table.terms td.head-col, table.terms th.head-col { width: 15%; font-weight: bold; }
     table.terms td.sno-col, table.terms th.sno-col { width: 6%; text-align: center; }
-    table.terms td.desc-col {
-      page-break-inside: auto;
-      break-inside: auto;
-    }
-
-    table.annexure-item-table tbody tr {
-      page-break-inside: auto;
-      break-inside: auto;
-    }
-
-    table.terms-item-table tbody tr {
+    table.terms tbody tr {
       page-break-inside: auto;
       break-inside: auto;
     }
