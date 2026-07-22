@@ -1,27 +1,28 @@
 const { getConfig } = require("./config");
-const { buildKissflowUrl } = require("./kissflowClient");
+const { buildKissflowAuthHeaders, kissflowFetch, isCloudflareChallenge } = require("./kissflowClient");
+
+const attachmentDataUriCache = new Map();
+let rateLimitedUntil = 0;
 
 function fixAttachmentKey(key = "", dataformId = "") {
   return String(key || "").replace(/^undefined\//, `${dataformId}/`);
 }
 
-function allKeysForImage(image = {}, dataformId = "") {
-  const keys = new Set();
-
+function primaryAttachmentKey(image = {}, dataformId = "") {
   if (image?.key) {
-    keys.add(fixAttachmentKey(image.key, dataformId));
+    return fixAttachmentKey(image.key, dataformId);
   }
 
   for (const photo of image?.photos || []) {
     if (photo?.key) {
-      keys.add(fixAttachmentKey(photo.key, dataformId));
+      return fixAttachmentKey(photo.key, dataformId);
     }
   }
 
-  return Array.from(keys).filter(Boolean);
+  return "";
 }
 
-function buildAttachmentCandidateUrls({
+function buildAttachmentDownloadUrl({
   baseUrl = "",
   accountId = "",
   dataformId = "",
@@ -31,76 +32,94 @@ function buildAttachmentCandidateUrls({
   key = ""
 }) {
   const cleanBase = String(baseUrl || "").replace(/\/+$/, "");
-  const encodedKey = encodeURIComponent(key);
-  const encodedFilename = encodeURIComponent(filename || "");
-
-  const urls = [];
 
   if (key) {
-    urls.push(
-      `${cleanBase}/attachment/2/${accountId}/${encodedKey}`,
-      `${cleanBase}/file/2/${accountId}/${encodedKey}`,
-      `${cleanBase}/form/2/${accountId}/download/${encodedKey}`,
-      `${cleanBase}/process/2/${accountId}/download/${encodedKey}`,
-      `${cleanBase}/download/${encodedKey}`,
-      `${cleanBase}/${key}`
-    );
+    return `${cleanBase}/attachment/2/${accountId}/${encodeURIComponent(key)}`;
   }
 
   if (attachmentId && dataformId && instanceId) {
-    urls.push(
-      `${cleanBase}/form/2/${accountId}/${dataformId}/${instanceId}/attachment/${attachmentId}/${encodedFilename}`,
-      `${cleanBase}/form/2/${accountId}/${dataformId}/${instanceId}/file/${attachmentId}/${encodedFilename}`,
-      `${cleanBase}/form/2/${accountId}/${dataformId}/${instanceId}/download/${attachmentId}/${encodedFilename}`,
-      `${cleanBase}/form/2/${accountId}/${dataformId}/${instanceId}/${attachmentId}/${encodedFilename}`,
-      `${cleanBase}/attachment/2/${accountId}/${attachmentId}`,
-      `${cleanBase}/attachment/2/${accountId}/${attachmentId}/${encodedFilename}`,
-      `${cleanBase}/file/2/${accountId}/${attachmentId}`,
-      `${cleanBase}/file/2/${accountId}/${attachmentId}/${encodedFilename}`
-    );
+    if (filename) {
+      return `${cleanBase}/form/2/${accountId}/${dataformId}/${instanceId}/attachment/${attachmentId}/${encodeURIComponent(filename)}`;
+    }
+
+    return `${cleanBase}/form/2/${accountId}/${dataformId}/${instanceId}/attachment/${attachmentId}`;
   }
 
-  return [...new Set(urls.filter(Boolean))];
+  return "";
 }
 
-function buildKissflowAuthHeaders() {
-  const config = getConfig();
+function buildCacheKey(image = {}, context = {}) {
+  return [
+    context.dataformId || "",
+    context.instanceId || "",
+    image.id || "",
+    image.key || "",
+    image.name || ""
+  ].join(":");
+}
 
-  return {
-    "X-Access-Key-Id": config.kissflow.accessKeyId,
-    "X-Access-Key-Secret": config.kissflow.accessKeySecret
-  };
+function markRateLimited(retryAfterMs = 90000) {
+  rateLimitedUntil = Date.now() + retryAfterMs;
+}
+
+function isRateLimited() {
+  return Date.now() < rateLimitedUntil;
 }
 
 function isImageContentType(contentType = "") {
   return String(contentType || "").toLowerCase().startsWith("image/");
 }
 
-async function fetchUrlAsDataUri(url, headers = {}) {
-  const response = await fetch(url, {
+async function fetchUrlAsDataUri(url, { maxRetries = 1 } = {}) {
+  const result = await kissflowFetch(url, {
     method: "GET",
-    headers
+    responseType: "buffer",
+    headers: {
+      Accept: "image/*, */*"
+    }
+  }, {
+    maxRetries
   });
 
-  if (!response.ok) {
-    return null;
+  if (result.status === 429) {
+    markRateLimited();
+    return "";
   }
 
-  const contentType = response.headers.get("content-type") || "";
+  if (!result.ok) {
+    const bodyPreview = Buffer.isBuffer(result.body) ? result.body.toString("utf8", 0, 200) : String(result.body || "");
+
+    if (isCloudflareChallenge(bodyPreview)) {
+      markRateLimited();
+    }
+
+    return "";
+  }
+
+  const contentType = result.headers.get("content-type") || "";
 
   if (!isImageContentType(contentType)) {
-    return null;
+    return "";
   }
 
-  const arrayBuffer = await response.arrayBuffer();
-  const base64 = Buffer.from(arrayBuffer).toString("base64");
+  const base64 = Buffer.from(result.body).toString("base64");
 
   return `data:${contentType};base64,${base64}`;
 }
 
 async function fetchKissflowAttachmentAsDataUri(image = {}, context = {}) {
-  if (!image || (typeof image !== "object")) {
+  if (!image || typeof image !== "object") {
     return "";
+  }
+
+  if (isRateLimited()) {
+    return "";
+  }
+
+  const cacheKey = buildCacheKey(image, context);
+
+  if (attachmentDataUriCache.has(cacheKey)) {
+    return attachmentDataUriCache.get(cacheKey);
   }
 
   const config = getConfig();
@@ -108,45 +127,29 @@ async function fetchKissflowAttachmentAsDataUri(image = {}, context = {}) {
   const accountId = context.accountId || config.kissflow.accountId;
   const dataformId = context.dataformId || "";
   const instanceId = context.instanceId || context.rowId || "";
-  const headers = buildKissflowAuthHeaders();
-  const keys = allKeysForImage(image, dataformId);
+  const key = primaryAttachmentKey(image, dataformId);
 
-  for (const key of keys) {
-    for (const url of buildAttachmentCandidateUrls({
-      baseUrl,
-      accountId,
-      dataformId,
-      instanceId,
-      attachmentId: image.id,
-      filename: image.name,
-      key
-    })) {
-      const dataUri = await fetchUrlAsDataUri(url, headers);
+  const url = buildAttachmentDownloadUrl({
+    baseUrl,
+    accountId,
+    dataformId,
+    instanceId,
+    attachmentId: image.id,
+    filename: image.name,
+    key
+  });
 
-      if (dataUri) {
-        return dataUri;
-      }
-    }
+  if (!url) {
+    return "";
   }
 
-  if (image.id && dataformId && instanceId) {
-    for (const url of buildAttachmentCandidateUrls({
-      baseUrl,
-      accountId,
-      dataformId,
-      instanceId,
-      attachmentId: image.id,
-      filename: image.name
-    })) {
-      const dataUri = await fetchUrlAsDataUri(url, headers);
+  const dataUri = await fetchUrlAsDataUri(url, { maxRetries: 1 });
 
-      if (dataUri) {
-        return dataUri;
-      }
-    }
+  if (dataUri) {
+    attachmentDataUriCache.set(cacheKey, dataUri);
   }
 
-  return "";
+  return dataUri;
 }
 
 async function resolveLetterheadLogoSources(row = {}, context = {}) {
@@ -159,6 +162,10 @@ async function resolveLetterheadLogoSources(row = {}, context = {}) {
     left_source: leftUrl ? "url_field" : "none",
     right_source: rightUrl ? "url_field" : "none"
   };
+
+  if (isRateLimited()) {
+    return sources;
+  }
 
   const fetchContext = {
     ...context,
@@ -194,13 +201,19 @@ function isKissflowHostUrl(url = "") {
   return Boolean(baseUrl && String(url || "").startsWith(baseUrl));
 }
 
+function clearAttachmentCache() {
+  attachmentDataUriCache.clear();
+  rateLimitedUntil = 0;
+}
+
 module.exports = {
   fixAttachmentKey,
-  allKeysForImage,
-  buildAttachmentCandidateUrls,
+  primaryAttachmentKey,
+  buildAttachmentDownloadUrl,
   buildKissflowAuthHeaders,
   fetchKissflowAttachmentAsDataUri,
   resolveLetterheadLogoSources,
   isKissflowHostUrl,
-  buildKissflowUrl
+  isRateLimited,
+  clearAttachmentCache
 };

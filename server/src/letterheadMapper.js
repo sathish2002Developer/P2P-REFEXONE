@@ -1,8 +1,9 @@
 const { getConfig } = require("./config");
 const { renderTemplate } = require("./templateRenderer");
+const { kissflowFetch, isCloudflareChallenge } = require("./kissflowClient");
 const {
-  buildKissflowAuthHeaders,
   isKissflowHostUrl,
+  isRateLimited,
   resolveLetterheadLogoSources
 } = require("./kissflowImageFetch");
 
@@ -249,28 +250,45 @@ function buildHeaderHtmlFromLogoUrls(row = {}, logoSources = {}) {
 }
 
 async function embedRemoteImagesAsDataUris(html = "", options = {}) {
-  if (!html) return "";
+  if (!html || isRateLimited()) return html;
 
-  const authHeaders = options.authHeaders || buildKissflowAuthHeaders();
   const imgSrcRegex = /<img\b[^>]*\bsrc=(["'])(https?:\/\/[^"']+)\1[^>]*>/gi;
   let output = String(html);
   const matches = [...String(html).matchAll(imgSrcRegex)];
 
   for (const match of matches) {
     const originalSrc = match[2];
+    const kissflowUrl = isKissflowHostUrl(originalSrc);
 
     try {
-      const response = await fetch(originalSrc, {
-        headers: isKissflowHostUrl(originalSrc) ? authHeaders : {}
+      const result = await kissflowFetch(originalSrc, {
+        method: "GET",
+        responseType: "buffer",
+        headers: kissflowUrl
+          ? { Accept: "image/*, */*" }
+          : {}
+      }, {
+        maxRetries: kissflowUrl ? 1 : 0
       });
 
-      if (!response.ok) {
+      if (result.status === 429) {
+        break;
+      }
+
+      if (!result.ok) {
+        const bodyPreview = Buffer.isBuffer(result.body)
+          ? result.body.toString("utf8", 0, 200)
+          : String(result.body || "");
+
+        if (isCloudflareChallenge(bodyPreview)) {
+          break;
+        }
+
         continue;
       }
 
-      const contentType = response.headers.get("content-type") || "image/png";
-      const arrayBuffer = await response.arrayBuffer();
-      const base64 = Buffer.from(arrayBuffer).toString("base64");
+      const contentType = result.headers.get("content-type") || "image/png";
+      const base64 = Buffer.from(result.body).toString("base64");
       const dataUri = `data:${contentType};base64,${base64}`;
 
       output = output.replaceAll(originalSrc, dataUri);
@@ -389,15 +407,13 @@ async function mapLetterheadForPdf(row = {}, baseUrl = "", tokenData = {}) {
 
   const mapped = mapLetterhead(row, baseUrl, logoSources);
   const letterheadTokens = buildLetterheadTokens(row, tokenData);
-  const authHeaders = buildKissflowAuthHeaders();
-
   const headerWithTokens = renderTemplate(mapped.header_html, letterheadTokens, { missingTokenMode: "keep" });
   const footerWithTokens = renderTemplate(mapped.footer_html, letterheadTokens, { missingTokenMode: "keep" });
 
   return {
     ...mapped,
-    header_html: await embedRemoteImagesAsDataUris(headerWithTokens, { authHeaders }),
-    footer_html: await embedRemoteImagesAsDataUris(footerWithTokens, { authHeaders })
+    header_html: await embedRemoteImagesAsDataUris(headerWithTokens),
+    footer_html: await embedRemoteImagesAsDataUris(footerWithTokens)
   };
 }
 
