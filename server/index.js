@@ -399,18 +399,18 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
       lineItemsTableId: config.kissflowModels.purchaseOrderLineItemsTableId
     });
 
+    const mergedTokenData = {
+      ...mappedPo.tokenData,
+      ...token_data
+    };
+
     const letterheadResult = await findCompanyLetterheadByCode(
       mappedPo.tokenData.buyer_company_code
     );
 
     const mappedLetterhead = letterheadResult.row
-      ? await mapLetterheadForPdf(letterheadResult.row, config.kissflow.baseUrl)
+      ? await mapLetterheadForPdf(letterheadResult.row, config.kissflow.baseUrl, mergedTokenData)
       : null;
-
-    const mergedTokenData = {
-      ...mappedPo.tokenData,
-      ...token_data
-    };
 
     const processTerms = mapProcessTermsRows(
       poResult.data,

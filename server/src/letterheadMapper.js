@@ -1,3 +1,5 @@
+const { renderTemplate } = require("./templateRenderer");
+
 function normalizeHtmlAssetUrls(html = "", baseUrl = "") {
   if (!html) return "";
 
@@ -15,6 +17,50 @@ function normalizeHtmlAssetUrls(html = "", baseUrl = "") {
     // Convert legacy mPDF-style page tokens to Playwright page tokens.
     .replaceAll("{PAGENO}", '<span class="pageNumber"></span>')
     .replaceAll("{nb}", '<span class="totalPages"></span>');
+}
+
+function wrapPlaywrightTemplate(innerHtml = "", slot = "body") {
+  const content = String(innerHtml || "").trim();
+  if (!content) return "";
+
+  if (content.includes("data-playwright-template")) {
+    return content;
+  }
+
+  return `
+    <div data-playwright-template="${slot}" style="
+      width:100%;
+      margin:0;
+      padding:0 10mm;
+      box-sizing:border-box;
+      font-family:Arial,Helvetica,sans-serif;
+      -webkit-print-color-adjust:exact;
+      print-color-adjust:exact;
+    ">
+      <div style="width:100%; font-size:10px; line-height:1.35; color:#1a1a1a;">
+        ${content}
+      </div>
+    </div>
+  `;
+}
+
+function buildLetterheadTokens(row = {}, tokenData = {}) {
+  return {
+    ...tokenData,
+    company_name: row.Company_Name || row.Untitled_Field || tokenData.buyer_company_name || "",
+    letterhead_company_name: row.Company_Name || row.Untitled_Field || tokenData.buyer_company_name || "",
+    company_code: row.Company_Code || tokenData.buyer_company_code || ""
+  };
+}
+
+function buildDefaultRefexTextLogoHtml() {
+  return `
+    <div style="display:flex; justify-content:flex-end; width:100%; margin-bottom:4px;">
+      <div style="font-size:24px; font-weight:800; font-style:italic; letter-spacing:-1px; line-height:1;">
+        <span style="color:#2e3192;">r</span><span style="color:#27aae1;">e</span><span style="color:#39b54a;">f</span><span style="color:#8dc63f;">e</span><span style="color:#f7941d;">x</span>
+      </div>
+    </div>
+  `;
 }
 
 function cleanUrl(value) {
@@ -53,21 +99,21 @@ function buildHeaderHtmlFromLogoUrls(row = {}) {
     ? `<img src="${rightUrl}" style="max-height:${rightLogoMaxHeightPx}px; max-width:260px; object-fit:contain;" />`
     : "";
 
-  return `
+  return wrapPlaywrightTemplate(`
     <div style="
       width:100%;
       height:${headerHeightMm}mm;
       display:flex;
       align-items:center;
       justify-content:space-between;
-      padding:0 12mm;
+      padding:0;
       box-sizing:border-box;
       font-size:8px;
     ">
       <div style="text-align:left;">${leftLogo}</div>
-      <div style="text-align:right;">${rightLogo}</div>
+      <div style="text-align:right;">${rightLogo || buildDefaultRefexTextLogoHtml()}</div>
     </div>
-  `;
+  `, "header");
 }
 
 async function embedRemoteImagesAsDataUris(html = "") {
@@ -106,12 +152,12 @@ function normalizeFooterSize(html = "") {
   if (!html) return "";
 
   let sizedHtml = String(html)
-    // Remove old page number placeholders
+    .replaceAll("{PAGENO}", '<span class="pageNumber"></span>')
+    .replaceAll("{nb}", '<span class="totalPages"></span>')
     .replace(
-      /<p[^>]*>\s*(\{PAGENO\}|\s*<span class=["']pageNumber["']><\/span>)\s*[-–]\s*(\{nb\}|\s*<span class=["']totalPages["']><\/span>)\s*<\/p>/gi,
-      ""
+      /<p[^>]*>\s*<span class=["']pageNumber["']><\/span>\s*[-–]\s*<span class=["']totalPages["']><\/span>\s*<\/p>/gi,
+      '<div style="text-align:center; font-size:11px; margin-top:8px;"><span class="pageNumber"></span>-<span class="totalPages"></span></div>'
     )
-    .replace(/\{PAGENO\}\s*[-–]\s*\{nb\}/gi, "")
 
     // Update image style
     .replace(/<img\b([^>]*)>/gi, (_match, attrs) => {
@@ -134,29 +180,17 @@ function normalizeFooterSize(html = "") {
         ">`;
     });
 
-  return `
-    <div style="
-      width:100%;
-      position:relative;
-      font-size:8px;
-      padding-top:5px;
-      text-align:center;
-    ">
-      ${sizedHtml}
+  const hasPageNumber = /class=["']pageNumber["']|class=["']totalPages["']|\{PAGENO\}|\{nb\}/i.test(sizedHtml);
+  const pageNumberHtml = hasPageNumber
+    ? ""
+    : `<div style="text-align:center; font-size:11px; margin-top:8px; width:100%;"><span class="pageNumber"></span>-<span class="totalPages"></span></div>`;
 
-      <div style="
-        position:absolute;
-        right:10mm;
-        bottom:0;
-        font-size:9px;
-        color:#000;
-        white-space:nowrap;
-      ">
-        Page <span class="pageNumber"></span> /
-        <span class="totalPages"></span>
-      </div>
+  return wrapPlaywrightTemplate(`
+    <div style="width:100%; position:relative; font-size:8px; padding-top:5px; text-align:center;">
+      ${sizedHtml}
+      ${pageNumberHtml}
     </div>
-  `;
+  `, "footer");
 }
 
 function mapLetterhead(row = {}, baseUrl = "") {
@@ -173,15 +207,16 @@ function mapLetterhead(row = {}, baseUrl = "") {
 
   const generatedHeaderHtml = buildHeaderHtmlFromLogoUrls(row);
   const fallbackHeaderHtml = normalizeHtmlAssetUrls(row.Header_HTML || "", baseUrl);
+  const rawHeaderHtml = generatedHeaderHtml || wrapPlaywrightTemplate(fallbackHeaderHtml || buildDefaultRefexTextLogoHtml(), "header");
   const normalizedFooterHtml = normalizeFooterSize(
     normalizeHtmlAssetUrls(row.Footer_HTML || "", baseUrl)
   );
 
   return {
     id: row._id || null,
-    company_name: row.Untitled_Field || row.Company_Name || "",
+    company_name: row.Company_Name || row.Untitled_Field || "",
     company_code: row.Company_Code || "",
-    header_html: generatedHeaderHtml || fallbackHeaderHtml,
+    header_html: rawHeaderHtml,
     footer_html: normalizedFooterHtml,
     page_size: row.Page_Size || "A4",
     margin_top_mm: safeMarginTop,
@@ -195,19 +230,26 @@ function mapLetterhead(row = {}, baseUrl = "") {
   };
 }
 
-async function mapLetterheadForPdf(row = {}, baseUrl = "") {
+async function mapLetterheadForPdf(row = {}, baseUrl = "", tokenData = {}) {
   const mapped = mapLetterhead(row, baseUrl);
+  const letterheadTokens = buildLetterheadTokens(row, tokenData);
+
+  const headerWithTokens = renderTemplate(mapped.header_html, letterheadTokens, { missingTokenMode: "keep" });
+  const footerWithTokens = renderTemplate(mapped.footer_html, letterheadTokens, { missingTokenMode: "keep" });
 
   return {
     ...mapped,
-    header_html: await embedRemoteImagesAsDataUris(mapped.header_html),
-    footer_html: await embedRemoteImagesAsDataUris(mapped.footer_html)
+    header_html: await embedRemoteImagesAsDataUris(headerWithTokens),
+    footer_html: await embedRemoteImagesAsDataUris(footerWithTokens)
   };
 }
 
 module.exports = {
   normalizeHtmlAssetUrls,
   normalizeFooterSize,
+  wrapPlaywrightTemplate,
+  buildLetterheadTokens,
+  buildDefaultRefexTextLogoHtml,
   cleanUrl,
   buildHeaderHtmlFromLogoUrls,
   embedRemoteImagesAsDataUris,

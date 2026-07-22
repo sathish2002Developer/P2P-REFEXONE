@@ -45,25 +45,29 @@ function renderTermsRows(rows = [], data = {}) {
 
 function buildTermsTable(rows = [], data = {}) {
   return `
-    <table class="terms">
-      <caption>Terms and Conditions</caption>
-      ${renderTermsRows(rows, data)}
-    </table>
+    <section class="terms-section">
+      <table class="terms">
+        <caption>Terms and Conditions</caption>
+        ${renderTermsRows(rows, data)}
+      </table>
+    </section>
   `;
 }
 
 function buildAnnexureITable(rows = [], data = {}) {
   return `
-    <h2 class="annexure-title">ANNEXURE-I</h2>
-    <h3 class="annexure-sub">COMMERCIAL TERMS AND CONDITIONS</h3>
-    <table class="terms">
-      <tr>
-        <th class="sno-col">S.NO.</th>
-        <th style="width:14%">HEADERS</th>
-        <th>TERMS AND CONDITIONS</th>
-      </tr>
-      ${renderAnnexureRows(rows, data)}
-    </table>
+    <section class="annexure-section">
+      <h2 class="annexure-title">ANNEXURE-I</h2>
+      <h3 class="annexure-sub">COMMERCIAL TERMS AND CONDITIONS</h3>
+      <table class="terms">
+        <tr>
+          <th class="sno-col">S.NO.</th>
+          <th style="width:14%">HEADERS</th>
+          <th>TERMS AND CONDITIONS</th>
+        </tr>
+        ${renderAnnexureRows(rows, data)}
+      </table>
+    </section>
   `;
 }
 
@@ -144,6 +148,17 @@ function buildPoStyles() {
     .amount-words .label { font-weight: bold; white-space: nowrap; margin-right: 10px; }
     .amount-words .value { font-weight: bold; text-align: right; }
 
+    .terms-section {
+      page-break-before: always;
+      break-before: page;
+      margin-top: 0;
+    }
+
+    .annexure-section {
+      page-break-before: always;
+      break-before: page;
+    }
+
     table.terms {
       width: 100%;
       border-collapse: collapse;
@@ -169,9 +184,8 @@ function buildPoStyles() {
 
     h2.annexure-title {
       text-align: center;
-      margin: 18px 0 4px 0;
+      margin: 0 0 4px 0;
       font-size: 15px;
-      page-break-before: auto;
     }
     h3.annexure-sub {
       text-align: center;
@@ -179,10 +193,16 @@ function buildPoStyles() {
       font-size: 13px;
     }
 
+    .special-notes-section {
+      page-break-before: always;
+      break-before: page;
+      margin-top: 0;
+    }
+
     .special-notes {
       border: 1px solid #000;
       padding: 12px 16px;
-      margin-top: 16px;
+      margin-top: 0;
       page-break-inside: avoid;
     }
     .special-notes p { margin: 6px 0; }

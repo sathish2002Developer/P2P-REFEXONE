@@ -286,6 +286,7 @@ function buildSpecialNotesHtml(po = {}, tokens = {}) {
     : "";
 
   return `
+    <section class="special-notes-section">
     <div class="special-notes">
       <p><strong>SPECIAL NOTES (if any):</strong></p>
 
@@ -322,6 +323,7 @@ function buildSpecialNotesHtml(po = {}, tokens = {}) {
       <strong>Dated:</strong><br>
       <strong>Place:</strong></p>
     </div>
+    </section>
   `;
 }
 
