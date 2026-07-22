@@ -91,6 +91,28 @@ function buildPoStyles() {
       margin: 0;
       padding: 0;
       line-height: 1.4;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    table.price,
+    table.terms {
+      width: 100%;
+      border-collapse: collapse;
+      page-break-inside: auto;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    table.price th,
+    table.price td,
+    table.terms th,
+    table.terms td,
+    table.price caption,
+    table.terms caption {
+      border: 1px solid #000;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
     }
 
     .title {
@@ -118,21 +140,19 @@ function buildPoStyles() {
     .info-box a { color: #1155cc; text-decoration: underline; }
 
     table.price {
-      width: 100%;
-      border-collapse: collapse;
       margin-bottom: 0;
-      page-break-inside: auto;
     }
     table.price caption {
       border: 1px solid #000;
-      border-bottom: none;
       padding: 5px;
       font-weight: bold;
       text-align: center;
       background: #f2f2f2;
+      caption-side: top;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
     }
     table.price th, table.price td {
-      border: 1px solid #000;
       padding: 6px 8px;
       vertical-align: top;
       font-size: 12px;
@@ -147,7 +167,6 @@ function buildPoStyles() {
 
     .amount-words {
       border: 1px solid #000;
-      border-top: none;
       padding: 8px 10px;
       display: flex;
       justify-content: space-between;
@@ -155,6 +174,8 @@ function buildPoStyles() {
       margin-bottom: 16px;
       page-break-inside: avoid;
       break-inside: avoid;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
     }
     .amount-words .label { font-weight: bold; white-space: nowrap; margin-right: 10px; }
     .amount-words .value { font-weight: bold; text-align: right; }
@@ -168,19 +189,17 @@ function buildPoStyles() {
     }
 
     table.terms {
-      width: 100%;
-      border-collapse: collapse;
       margin-top: 10px;
-      page-break-inside: auto;
     }
     table.terms caption {
       font-weight: bold;
       padding: 6px;
       border: 1px solid #000;
-      border-bottom: none;
       background: #f2f2f2;
       page-break-after: avoid;
       break-after: avoid;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
     }
     table.terms thead {
       display: table-header-group;
@@ -189,7 +208,6 @@ function buildPoStyles() {
       display: table-row-group;
     }
     table.terms th, table.terms td {
-      border: 1px solid #000;
       padding: 7px 9px;
       vertical-align: top;
       text-align: left;

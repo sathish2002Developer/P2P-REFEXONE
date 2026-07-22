@@ -80,7 +80,18 @@ function estimateFooterHeightMm(html = "") {
   estimate += lineBreaks * 2.8;
 
   if (/<img\b/i.test(html)) {
-    estimate += 12;
+    const heightMatch = String(html).match(/<img\b[^>]*\sheight=["']?(\d+)/i);
+    const widthMatch = String(html).match(/<img\b[^>]*\swidth=["']?(\d+)/i);
+    const imgHeightPx = heightMatch ? Number(heightMatch[1]) : 0;
+    const imgWidthPx = widthMatch ? Number(widthMatch[1]) : 0;
+
+    if (imgHeightPx > 0) {
+      estimate = Math.max(estimate, Math.round(imgHeightPx * 0.28) + 8);
+    } else if (imgWidthPx > 0) {
+      estimate = Math.max(estimate, Math.round(imgWidthPx * 0.12) + 8);
+    } else {
+      estimate += 18;
+    }
   }
 
   return Math.min(Math.max(estimate, 36), 52);
@@ -189,37 +200,26 @@ async function embedRemoteImagesAsDataUris(html = "") {
 }
 
 
+function normalizeFooterImages(html = "") {
+  return String(html || "").replace(/<img\b([^>]*)>/gi, (_match, attrs) => {
+    if (/\sstyle\s*=/i.test(attrs)) {
+      return `<img${attrs}>`;
+    }
+
+    return `<img${attrs} style="display:block; margin:0 auto;">`;
+  });
+}
+
 function normalizeFooterSize(html = "") {
   if (!html) return "";
 
-  let sizedHtml = String(html)
+  let sizedHtml = normalizeFooterImages(String(html))
     .replaceAll("{PAGENO}", '<span class="pageNumber"></span>')
     .replaceAll("{nb}", '<span class="totalPages"></span>')
     .replace(
       /<p[^>]*>\s*<span class=["']pageNumber["']><\/span>\s*[-–]\s*<span class=["']totalPages["']><\/span>\s*<\/p>/gi,
       '<div style="text-align:center; font-size:11px; margin-top:8px;"><span class="pageNumber"></span>-<span class="totalPages"></span></div>'
-    )
-
-    // Update image style
-    .replace(/<img\b([^>]*)>/gi, (_match, attrs) => {
-
-      // Remove existing width/height/style
-      let newAttrs = attrs
-        .replace(/\swidth\s*=\s*["'][^"']*["']/gi, "")
-        .replace(/\sheight\s*=\s*["'][^"']*["']/gi, "")
-        .replace(/\sstyle\s*=\s*(["']).*?\1/gi, "");
-
-      return `<img${newAttrs}
-        style="
-          display:block;
-          margin:0 auto;
-          width:100%;
-          height:auto;
-          max-width:100%;
-          max-height:48px;
-          object-fit:contain;
-        ">`;
-    });
+    );
 
   const hasPageNumber = /class=["']pageNumber["']|class=["']totalPages["']|\{PAGENO\}|\{nb\}/i.test(sizedHtml);
   const pageNumberHtml = hasPageNumber
