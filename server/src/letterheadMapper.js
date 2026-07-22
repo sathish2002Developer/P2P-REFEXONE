@@ -106,38 +106,54 @@ function normalizeFooterSize(html = "") {
   if (!html) return "";
 
   let sizedHtml = String(html)
-    // Remove existing legacy or Playwright page-number paragraphs from configured footer HTML.
-    // We append our own controlled page-number line at bottom-right.
-    .replace(/<p[^>]*>\s*(\{PAGENO\}|\s*<span class=["']pageNumber["']><\/span>)\s*[-–]\s*(\{nb\}|\s*<span class=["']totalPages["']><\/span>)\s*<\/p>/gi, "")
+    // Remove old page number placeholders
+    .replace(
+      /<p[^>]*>\s*(\{PAGENO\}|\s*<span class=["']pageNumber["']><\/span>)\s*[-–]\s*(\{nb\}|\s*<span class=["']totalPages["']><\/span>)\s*<\/p>/gi,
+      ""
+    )
     .replace(/\{PAGENO\}\s*[-–]\s*\{nb\}/gi, "")
 
-    // Normalize footer image sizing.
-    .replace(/<img\b([^>]*)style=(["'])(.*?)\2([^>]*)>/gi, (_match, before, quote, style, after) => {
-      const cleanedStyle = String(style)
-        .replace(/max-width\s*:\s*[^;]+;?/gi, "")
-        .replace(/width\s*:\s*[^;]+;?/gi, "")
-        .replace(/height\s*:\s*[^;]+;?/gi, "")
-        .replace(/max-height\s*:\s*[^;]+;?/gi, "")
-        .replace(/object-fit\s*:\s*[^;]+;?/gi, "")
-        .trim();
+    // Update image style
+    .replace(/<img\b([^>]*)>/gi, (_match, attrs) => {
 
-      const nextStyle = `${cleanedStyle}; max-width:680px; max-height:48px; object-fit:contain;`.replace(/^;\s*/, "");
+      // Remove existing width/height/style
+      let newAttrs = attrs
+        .replace(/\swidth\s*=\s*["'][^"']*["']/gi, "")
+        .replace(/\sheight\s*=\s*["'][^"']*["']/gi, "")
+        .replace(/\sstyle\s*=\s*(["']).*?\1/gi, "");
 
-      return `<img${before}style=${quote}${nextStyle}${quote}${after}>`;
+      return `<img${newAttrs}
+        style="
+          display:block;
+          margin:0 auto;
+          width:700px;
+          height:auto;
+          max-width:700px;
+          max-height:180px;
+          object-fit:contain;
+        ">`;
     });
 
   return `
-    <div style="width:100%; font-size:8px; line-height:1.1; position:relative;">
-      <div style="width:100%; text-align:center;">${sizedHtml}</div>
+    <div style="
+      width:100%;
+      position:relative;
+      font-size:8px;
+      padding-top:5px;
+      text-align:center;
+    ">
+      ${sizedHtml}
+
       <div style="
         position:absolute;
-        right:8mm;
+        right:10mm;
         bottom:0;
-        text-align:right;
-        color:#111;
+        font-size:9px;
+        color:#000;
         white-space:nowrap;
       ">
-        Page <span class="pageNumber"></span>/<span class="totalPages"></span>
+        Page <span class="pageNumber"></span> /
+        <span class="totalPages"></span>
       </div>
     </div>
   `;
