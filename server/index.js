@@ -539,6 +539,10 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
         company_code: mappedLetterhead?.company_code || mappedPo.tokenData.buyer_company_code || "",
         header_applied: Boolean(mappedLetterhead?.header_html),
         footer_applied: Boolean(mappedLetterhead?.footer_html),
+        header_left_logo_source: mappedLetterhead?.header_left_logo_source || "none",
+        header_right_logo_source: mappedLetterhead?.header_right_logo_source || "none",
+        header_logo_file_left_set: Boolean(mappedLetterhead?.header_logo_file_left_set),
+        header_logo_file_right_set: Boolean(mappedLetterhead?.header_logo_file_right_set),
         margin_top_mm: mappedLetterhead?.margin_top_mm || margin_top_mm,
         margin_bottom_mm: mappedLetterhead?.margin_bottom_mm || margin_bottom_mm
       },

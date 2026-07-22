@@ -1,4 +1,10 @@
+const { getConfig } = require("./config");
 const { renderTemplate } = require("./templateRenderer");
+const {
+  buildKissflowAuthHeaders,
+  isKissflowHostUrl,
+  resolveLetterheadLogoSources
+} = require("./kissflowImageFetch");
 
 function normalizeHtmlAssetUrls(html = "", baseUrl = "") {
   if (!html) return "";
@@ -214,9 +220,9 @@ function toFiniteNumber(value, fallback) {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-function buildHeaderHtmlFromLogoUrls(row = {}) {
-  const leftUrl = cleanUrl(row.Header_Left_Logo_URL);
-  const rightUrl = cleanUrl(row.Header_Right_Logo_URL);
+function buildHeaderHtmlFromLogoUrls(row = {}, logoSources = {}) {
+  const leftUrl = cleanUrl(logoSources.left || row.Header_Left_Logo_URL);
+  const rightUrl = cleanUrl(logoSources.right || row.Header_Right_Logo_URL);
 
   if (!leftUrl && !rightUrl) return "";
 
@@ -242,9 +248,10 @@ function buildHeaderHtmlFromLogoUrls(row = {}) {
   `, "header");
 }
 
-async function embedRemoteImagesAsDataUris(html = "") {
+async function embedRemoteImagesAsDataUris(html = "", options = {}) {
   if (!html) return "";
 
+  const authHeaders = options.authHeaders || buildKissflowAuthHeaders();
   const imgSrcRegex = /<img\b[^>]*\bsrc=(["'])(https?:\/\/[^"']+)\1[^>]*>/gi;
   let output = String(html);
   const matches = [...String(html).matchAll(imgSrcRegex)];
@@ -253,7 +260,9 @@ async function embedRemoteImagesAsDataUris(html = "") {
     const originalSrc = match[2];
 
     try {
-      const response = await fetch(originalSrc);
+      const response = await fetch(originalSrc, {
+        headers: isKissflowHostUrl(originalSrc) ? authHeaders : {}
+      });
 
       if (!response.ok) {
         continue;
@@ -317,13 +326,13 @@ function normalizeFooterSize(html = "") {
   `, "footer");
 }
 
-function mapLetterhead(row = {}, baseUrl = "") {
+function mapLetterhead(row = {}, baseUrl = "", logoSources = {}) {
   const configuredMarginTop = Number(row.Margin_Top_mm || 20);
   const configuredMarginBottom = Number(row.Margin_Bottom_mm || 0);
   const configuredFooterHeight = Number(row.Footer_Height_mm || 0);
   const headerHeightMm = toFiniteNumber(row.Header_Height_mm, 18);
 
-  const generatedHeaderHtml = buildHeaderHtmlFromLogoUrls(row);
+  const generatedHeaderHtml = buildHeaderHtmlFromLogoUrls(row, logoSources);
   const fallbackHeaderHtml = normalizeHeaderHtml(normalizeHtmlAssetUrls(row.Header_HTML || "", baseUrl));
   const rawHeaderHtml = generatedHeaderHtml || wrapPlaywrightTemplate(fallbackHeaderHtml || buildDefaultRefexTextLogoHtml(), "header");
 
@@ -359,24 +368,36 @@ function mapLetterhead(row = {}, baseUrl = "") {
     header_height_mm: estimatedHeaderHeightMm,
     footer_height_mm: estimatedFooterHeightMm,
     header_logo_max_height_px: toFiniteNumber(row.Header_Logo_Max_Height_px, 45),
-    header_left_logo_url_set: Boolean(cleanUrl(row.Header_Left_Logo_URL)),
-    header_right_logo_url_set: Boolean(cleanUrl(row.Header_Right_Logo_URL)),
+    header_left_logo_url_set: Boolean(cleanUrl(logoSources.left || row.Header_Left_Logo_URL)),
+    header_right_logo_url_set: Boolean(cleanUrl(logoSources.right || row.Header_Right_Logo_URL)),
+    header_left_logo_source: logoSources.left_source || (cleanUrl(row.Header_Left_Logo_URL) ? "url_field" : "none"),
+    header_right_logo_source: logoSources.right_source || (cleanUrl(row.Header_Right_Logo_URL) ? "url_field" : "none"),
+    header_logo_file_left_set: Boolean(row.Logo_File?.id || row.Logo_File?.key),
+    header_logo_file_right_set: Boolean(row.Logo_File_Right?.id || row.Logo_File_Right?.key),
     is_active: Boolean(row.Is_Active),
     version: row.Version || ""
   };
 }
 
 async function mapLetterheadForPdf(row = {}, baseUrl = "", tokenData = {}) {
-  const mapped = mapLetterhead(row, baseUrl);
+  const config = getConfig();
+  const logoSources = await resolveLetterheadLogoSources(row, {
+    baseUrl,
+    dataformId: config.kissflowModels.companyLetterheadDataformId,
+    instanceId: row._id || ""
+  });
+
+  const mapped = mapLetterhead(row, baseUrl, logoSources);
   const letterheadTokens = buildLetterheadTokens(row, tokenData);
+  const authHeaders = buildKissflowAuthHeaders();
 
   const headerWithTokens = renderTemplate(mapped.header_html, letterheadTokens, { missingTokenMode: "keep" });
   const footerWithTokens = renderTemplate(mapped.footer_html, letterheadTokens, { missingTokenMode: "keep" });
 
   return {
     ...mapped,
-    header_html: await embedRemoteImagesAsDataUris(headerWithTokens),
-    footer_html: await embedRemoteImagesAsDataUris(footerWithTokens)
+    header_html: await embedRemoteImagesAsDataUris(headerWithTokens, { authHeaders }),
+    footer_html: await embedRemoteImagesAsDataUris(footerWithTokens, { authHeaders })
   };
 }
 
