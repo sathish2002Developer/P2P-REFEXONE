@@ -129,11 +129,23 @@ function mapPurchaseOrderTokens(po = {}) {
     ref_no: po.Quote_Number || po.PR_Number || "",
     ref_date: formatDateDDMMYYYY(po.Quote_Date || po.PR_Required_Date || pr.PR_Date || ""),
     subject: po.PO_Title || pr.PR_Title || po.PR__Title || po.Comments || "",
-    // Canonical source for letterhead selection:
-    // Company_Letterhead_Master_A00.Company_Code must match PO.Entity.
-    // PR entity fields are fallback only.
-    buyer_company_code:  po.Entity_1 || "",
-    buyer_company_name:  po.Entity_1 || po.PR_Entity_code || po.PR_Entity || po.PR_Entity_1 || "",
+    // Company_Letterhead_Master_A00.Company_Code must match PO.Entity (code).
+    // Entity_1 is usually the display name and is used only as a fallback lookup.
+    buyer_company_code: String(
+      po.Entity ||
+      po.Entity_Code ||
+      po.PR_Entity_code ||
+      po.PR_Entity ||
+      ""
+    ).trim(),
+    buyer_company_name: String(
+      po.Entity_1 ||
+      po.Entity_Name ||
+      po.PR_Entity ||
+      po.PR_Entity_1 ||
+      po.Entity ||
+      ""
+    ).trim(),
     mode_of_shipment: po.Shipment_Mode || "",
     grand_total: cleanCurrency(po.Grand_Total || po.Total || ""),
     subtotal: cleanCurrency(po.Subtotal || po.Total || ""),

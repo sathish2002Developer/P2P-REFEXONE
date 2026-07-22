@@ -5,7 +5,7 @@ const { renderHtmlToPdfBuffer } = require("./src/pdfRenderer");
 const { uploadPdfBuffer } = require("./src/gcs");
 const { resolveActivityInstanceId, attachPdfToProcessField } = require("./src/kissflowAttachments");
 const { getAccountProbe, kfRequest } = require("./src/kissflowClient");
-const { probeMasterDataforms, getDataformItem, findCompanyLetterheadByCode, findAnnexureMasterByPoType } = require("./src/kissflowDataforms");
+const { probeMasterDataforms, getDataformItem, findCompanyLetterhead, findCompanyLetterheadByCode, findAnnexureMasterByPoType } = require("./src/kissflowDataforms");
 const { mapAnnexureMaster } = require("./src/annexureMapper");
 const { getPurchaseOrderInstance, updatePurchaseOrderInstance } = require("./src/kissflowProcesses");
 const { buildPurchaseOrderBodyHtml, mapProcessTermsRows, mapProcessAnnexureRows } = require("./src/poMapper");
@@ -184,15 +184,23 @@ app.get("/kissflow/letterhead/:companyCode", async (req, res) => {
 
 app.get("/kissflow/letterhead/:companyCode/mapped", async (req, res) => {
   try {
-    const result = await findCompanyLetterheadByCode(req.params.companyCode);
-    const mapped = result.row ? mapLetterhead(result.row, config.kissflow.baseUrl) : null;
+    const result = await findCompanyLetterhead({
+      companyCode: req.params.companyCode,
+      companyName: req.query.company_name || ""
+    });
+    const mapped = await mapLetterheadForPdf(
+      result.row || {},
+      config.kissflow.baseUrl
+    );
 
     res.status(200).json({
       ok: true,
       app_env: config.service.appEnv,
       status: result.status,
       company_code: result.companyCode,
+      company_name: result.companyName || "",
       found: result.found,
+      matched_by: result.matched_by || "none",
       mapped
     });
   } catch (error) {
@@ -404,13 +412,16 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
       ...token_data
     };
 
-    const letterheadResult = await findCompanyLetterheadByCode(
-      mappedPo.tokenData.buyer_company_code
-    );
+    const letterheadResult = await findCompanyLetterhead({
+      companyCode: mappedPo.tokenData.buyer_company_code,
+      companyName: mappedPo.tokenData.buyer_company_name
+    });
 
-    const mappedLetterhead = letterheadResult.row
-      ? await mapLetterheadForPdf(letterheadResult.row, config.kissflow.baseUrl, mergedTokenData)
-      : null;
+    const mappedLetterhead = await mapLetterheadForPdf(
+      letterheadResult.row || {},
+      config.kissflow.baseUrl,
+      mergedTokenData
+    );
 
     const processTerms = mapProcessTermsRows(
       poResult.data,
@@ -535,8 +546,11 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
         line_items_count: mappedPo.lineItems.length
       },
       letterhead: {
-        found: Boolean(mappedLetterhead),
-        company_code: mappedLetterhead?.company_code || mappedPo.tokenData.buyer_company_code || "",
+        found: Boolean(letterheadResult.found),
+        matched_by: letterheadResult.matched_by || "none",
+        lookup_company_code: mappedPo.tokenData.buyer_company_code || "",
+        lookup_company_name: mappedPo.tokenData.buyer_company_name || "",
+        company_code: mappedLetterhead?.company_code || letterheadResult.companyCode || "",
         header_applied: Boolean(mappedLetterhead?.header_html),
         footer_applied: Boolean(mappedLetterhead?.footer_html),
         header_left_logo_source: mappedLetterhead?.header_left_logo_source || "none",

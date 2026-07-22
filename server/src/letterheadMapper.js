@@ -3,7 +3,6 @@ const { renderTemplate } = require("./templateRenderer");
 const { kissflowFetch, isCloudflareChallenge } = require("./kissflowClient");
 const {
   isKissflowHostUrl,
-  isRateLimited,
   resolveLetterheadLogoSources
 } = require("./kissflowImageFetch");
 
@@ -34,34 +33,11 @@ function wrapPlaywrightTemplate(innerHtml = "", slot = "body") {
     return content;
   }
 
-  const isFooter = slot === "footer";
-  const isHeader = slot === "header";
-  const horizontalPadding = isFooter ? "0" : "0 10mm";
+  const horizontalPadding = slot === "footer" ? "0" : "0 10mm";
 
   return `
-    <div data-playwright-template="${slot}" style="
-      width:100%;
-      max-width:100%;
-      margin:0;
-      padding:${horizontalPadding};
-      box-sizing:border-box;
-      font-family:Arial,Helvetica,sans-serif;
-      -webkit-print-color-adjust:exact;
-      print-color-adjust:exact;
-      overflow:${isFooter ? "hidden" : "visible"};
-    ">
-      <div style="
-        width:100%;
-        max-width:100%;
-        margin:0 auto;
-        text-align:${isFooter ? "center" : (isHeader ? "right" : "left")};
-        font-size:10px;
-        line-height:1.35;
-        color:#1a1a1a;
-        box-sizing:border-box;
-      ">
-        ${content}
-      </div>
+    <div data-playwright-template="${slot}" style="width:100%; margin:0; padding:${horizontalPadding}; box-sizing:border-box; font-size:10px; line-height:1.35; font-family:Arial,Helvetica,sans-serif; color:#1a1a1a; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
+      ${content}
     </div>
   `;
 }
@@ -204,10 +180,8 @@ function buildHeaderLogoImg(url, { align = "left" } = {}) {
 }
 function buildDefaultRefexTextLogoHtml() {
   return `
-    <div style="display:flex; justify-content:flex-end; width:100%; margin-bottom:4px;">
-      <div style="font-size:24px; font-weight:800; font-style:italic; letter-spacing:-1px; line-height:1;">
-        <span style="color:#2e3192;">r</span><span style="color:#27aae1;">e</span><span style="color:#39b54a;">f</span><span style="color:#8dc63f;">e</span><span style="color:#f7941d;">x</span>
-      </div>
+    <div style="text-align:right; width:100%; font-size:24px; font-weight:800; font-style:italic; letter-spacing:-1px; line-height:1.1;">
+      <span style="color:#2e3192;">r</span><span style="color:#27aae1;">e</span><span style="color:#39b54a;">f</span><span style="color:#8dc63f;">e</span><span style="color:#f7941d;">x</span>
     </div>
   `;
 }
@@ -227,30 +201,21 @@ function buildHeaderHtmlFromLogoUrls(row = {}, logoSources = {}) {
 
   if (!leftUrl && !rightUrl) return "";
 
-  const headerHeightMm = toFiniteNumber(row.Header_Height_mm, 18);
   const leftLogo = buildHeaderLogoImg(leftUrl, { align: "left" });
   const rightLogo = buildHeaderLogoImg(rightUrl, { align: "right" });
 
   return wrapPlaywrightTemplate(`
-    <div style="
-      width:100%;
-      min-height:${headerHeightMm}mm;
-      height:auto;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding:0;
-      box-sizing:border-box;
-      font-size:8px;
-    ">
-      <div style="text-align:left; flex:1 1 auto;">${leftLogo}</div>
-      <div style="text-align:right; flex:1 1 auto;">${rightLogo || buildDefaultRefexTextLogoHtml()}</div>
-    </div>
+    <table style="width:100%; border-collapse:collapse; font-size:10px;">
+      <tr>
+        <td style="width:50%; text-align:left; vertical-align:middle; padding:0;">${leftLogo}</td>
+        <td style="width:50%; text-align:right; vertical-align:middle; padding:0;">${rightLogo || buildDefaultRefexTextLogoHtml()}</td>
+      </tr>
+    </table>
   `, "header");
 }
 
-async function embedRemoteImagesAsDataUris(html = "", options = {}) {
-  if (!html || isRateLimited()) return html;
+async function embedRemoteImagesAsDataUris(html = "", _options = {}) {
+  if (!html) return html;
 
   const imgSrcRegex = /<img\b[^>]*\bsrc=(["'])(https?:\/\/[^"']+)\1[^>]*>/gi;
   let output = String(html);
@@ -337,7 +302,7 @@ function normalizeFooterSize(html = "") {
     : `<div style="text-align:center; font-size:11px; margin-top:8px; width:100%;"><span class="pageNumber"></span>-<span class="totalPages"></span></div>`;
 
   return wrapPlaywrightTemplate(`
-    <div style="width:100%; max-width:100%; margin:0 auto; padding-top:5px; text-align:center; box-sizing:border-box;">
+    <div style="width:100%; margin:0 auto; padding-top:5px; text-align:center; box-sizing:border-box; font-size:10px;">
       ${sizedHtml}
       ${pageNumberHtml}
     </div>

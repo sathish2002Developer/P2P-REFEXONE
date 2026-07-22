@@ -53,11 +53,24 @@ async function getDataformItem(dataformId, itemId) {
 
 
 async function findCompanyLetterheadByCode(companyCode) {
-  const config = getConfig();
-  const normalized = String(companyCode || "").trim().toUpperCase();
+  return findCompanyLetterhead({ companyCode });
+}
 
-  if (!normalized) {
-    throw new Error("companyCode is required");
+async function findCompanyLetterhead({ companyCode = "", companyName = "" } = {}) {
+  const config = getConfig();
+  const normalizedCode = normalizeLookupText(companyCode);
+  const normalizedName = normalizeLookupText(companyName);
+
+  if (!normalizedCode && !normalizedName) {
+    return {
+      status: 200,
+      companyCode: "",
+      companyName: "",
+      found: false,
+      row: null,
+      matched_by: "none",
+      totalCount: 0
+    };
   }
 
   const result = await listDataformItems(
@@ -66,15 +79,54 @@ async function findCompanyLetterheadByCode(companyCode) {
   );
 
   const rows = result.data?.Data || [];
-  const match = rows.find((row) => {
-    return String(row.Company_Code || "").trim().toUpperCase() === normalized;
-  });
+
+  if (normalizedCode) {
+    const codeMatch = rows.find((row) => {
+      return normalizeLookupText(row.Company_Code) === normalizedCode;
+    });
+
+    if (codeMatch) {
+      return {
+        status: result.status,
+        companyCode: normalizedCode,
+        companyName: normalizedName,
+        found: true,
+        row: codeMatch,
+        matched_by: "company_code",
+        totalCount: result.data?.count ?? rows.length
+      };
+    }
+  }
+
+  if (normalizedName) {
+    const nameMatch = rows.find((row) => {
+      const candidates = [row.Company_Name, row.Untitled_Field, row.Company_Code]
+        .map(normalizeLookupText)
+        .filter(Boolean);
+
+      return candidates.includes(normalizedName);
+    });
+
+    if (nameMatch) {
+      return {
+        status: result.status,
+        companyCode: normalizeLookupText(nameMatch.Company_Code) || normalizedCode,
+        companyName: normalizedName,
+        found: true,
+        row: nameMatch,
+        matched_by: "company_name",
+        totalCount: result.data?.count ?? rows.length
+      };
+    }
+  }
 
   return {
     status: result.status,
-    companyCode: normalized,
-    found: Boolean(match),
-    row: match || null,
+    companyCode: normalizedCode,
+    companyName: normalizedName,
+    found: false,
+    row: null,
+    matched_by: "none",
     totalCount: result.data?.count ?? rows.length
   };
 }
@@ -164,6 +216,7 @@ module.exports = {
   listDataformItems,
   getDataformItem,
   findCompanyLetterheadByCode,
+  findCompanyLetterhead,
   findAnnexureMasterByPoType,
   probeMasterDataforms
 };

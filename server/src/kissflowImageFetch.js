@@ -22,7 +22,7 @@ function primaryAttachmentKey(image = {}, dataformId = "") {
   return "";
 }
 
-function buildAttachmentDownloadUrl({
+function buildAttachmentDownloadUrls({
   baseUrl = "",
   accountId = "",
   dataformId = "",
@@ -32,20 +32,25 @@ function buildAttachmentDownloadUrl({
   key = ""
 }) {
   const cleanBase = String(baseUrl || "").replace(/\/+$/, "");
+  const urls = [];
 
   if (key) {
-    return `${cleanBase}/attachment/2/${accountId}/${encodeURIComponent(key)}`;
+    urls.push(`${cleanBase}/attachment/2/${accountId}/${encodeURIComponent(key)}`);
   }
 
   if (attachmentId && dataformId && instanceId) {
     if (filename) {
-      return `${cleanBase}/form/2/${accountId}/${dataformId}/${instanceId}/attachment/${attachmentId}/${encodeURIComponent(filename)}`;
+      urls.push(
+        `${cleanBase}/form/2/${accountId}/${dataformId}/${instanceId}/attachment/${attachmentId}/${encodeURIComponent(filename)}`
+      );
+    } else {
+      urls.push(
+        `${cleanBase}/form/2/${accountId}/${dataformId}/${instanceId}/attachment/${attachmentId}`
+      );
     }
-
-    return `${cleanBase}/form/2/${accountId}/${dataformId}/${instanceId}/attachment/${attachmentId}`;
   }
 
-  return "";
+  return [...new Set(urls.filter(Boolean))];
 }
 
 function buildCacheKey(image = {}, context = {}) {
@@ -128,8 +133,7 @@ async function fetchKissflowAttachmentAsDataUri(image = {}, context = {}) {
   const dataformId = context.dataformId || "";
   const instanceId = context.instanceId || context.rowId || "";
   const key = primaryAttachmentKey(image, dataformId);
-
-  const url = buildAttachmentDownloadUrl({
+  const urls = buildAttachmentDownloadUrls({
     baseUrl,
     accountId,
     dataformId,
@@ -139,17 +143,16 @@ async function fetchKissflowAttachmentAsDataUri(image = {}, context = {}) {
     key
   });
 
-  if (!url) {
-    return "";
+  for (const url of urls) {
+    const dataUri = await fetchUrlAsDataUri(url, { maxRetries: 1 });
+
+    if (dataUri) {
+      attachmentDataUriCache.set(cacheKey, dataUri);
+      return dataUri;
+    }
   }
 
-  const dataUri = await fetchUrlAsDataUri(url, { maxRetries: 1 });
-
-  if (dataUri) {
-    attachmentDataUriCache.set(cacheKey, dataUri);
-  }
-
-  return dataUri;
+  return "";
 }
 
 async function resolveLetterheadLogoSources(row = {}, context = {}) {
@@ -209,7 +212,7 @@ function clearAttachmentCache() {
 module.exports = {
   fixAttachmentKey,
   primaryAttachmentKey,
-  buildAttachmentDownloadUrl,
+  buildAttachmentDownloadUrls,
   buildKissflowAuthHeaders,
   fetchKissflowAttachmentAsDataUri,
   resolveLetterheadLogoSources,
