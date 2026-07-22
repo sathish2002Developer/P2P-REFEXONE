@@ -28,6 +28,7 @@ function wrapPlaywrightTemplate(innerHtml = "", slot = "body") {
   }
 
   const isFooter = slot === "footer";
+  const isHeader = slot === "header";
   const horizontalPadding = isFooter ? "0" : "0 10mm";
 
   return `
@@ -40,13 +41,13 @@ function wrapPlaywrightTemplate(innerHtml = "", slot = "body") {
       font-family:Arial,Helvetica,sans-serif;
       -webkit-print-color-adjust:exact;
       print-color-adjust:exact;
-      overflow:hidden;
+      overflow:${isFooter ? "hidden" : "visible"};
     ">
       <div style="
         width:100%;
         max-width:100%;
         margin:0 auto;
-        text-align:${isFooter ? "center" : "left"};
+        text-align:${isFooter ? "center" : (isHeader ? "right" : "left")};
         font-size:10px;
         line-height:1.35;
         color:#1a1a1a;
@@ -158,10 +159,41 @@ function estimateFooterHeightMm(html = "") {
 function estimateHeaderHeightMm(html = "", configuredHeightMm = 18) {
   const content = String(html || "").trim();
   if (!content) return configuredHeightMm;
-  if (/<img\b/i.test(content)) {
-    return Math.max(configuredHeightMm, 20);
+
+  let estimate = configuredHeightMm;
+  const heightMatch = content.match(/<img\b[^>]*\sheight=["']?(\d+)/i);
+  const styleHeightMatch = content.match(/max-height\s*:\s*(\d+(?:\.\d+)?)px/i);
+
+  if (heightMatch) {
+    estimate = Math.max(estimate, Math.round(Number(heightMatch[1]) * 0.28) + 6);
+  } else if (styleHeightMatch) {
+    estimate = Math.max(estimate, Math.round(Number(styleHeightMatch[1]) * 0.28) + 6);
+  } else if (/<img\b/i.test(content)) {
+    estimate = Math.max(estimate, 24);
   }
-  return Math.max(configuredHeightMm, 16);
+
+  return estimate;
+}
+
+function normalizeHeaderImages(html = "") {
+  return String(html || "").replace(/<img\b([^>]*)>/gi, (_match, attrs) => {
+    if (/\sstyle\s*=/i.test(attrs)) {
+      return `<img${attrs}>`;
+    }
+
+    return `<img${attrs} style="display:block; height:auto; width:auto; max-width:100%;">`;
+  });
+}
+
+function normalizeHeaderHtml(html = "") {
+  return normalizeHeaderImages(String(html || "").trim());
+}
+
+function buildHeaderLogoImg(url, { align = "left" } = {}) {
+  if (!url) return "";
+
+  const alignStyle = align === "right" ? "margin-left:auto;" : "";
+  return `<img src="${url}" style="display:block; ${alignStyle} width:auto; height:auto; max-width:100%;" />`;
 }
 function buildDefaultRefexTextLogoHtml() {
   return `
@@ -189,30 +221,14 @@ function buildHeaderHtmlFromLogoUrls(row = {}) {
   if (!leftUrl && !rightUrl) return "";
 
   const headerHeightMm = toFiniteNumber(row.Header_Height_mm, 18);
-  const sharedLogoMaxHeightPx = toFiniteNumber(row.Header_Logo_Max_Height_px, 45);
-
-  const leftLogoMaxHeightPx = toFiniteNumber(
-    row.Header_Left_Logo_Max_Height_px,
-    sharedLogoMaxHeightPx
-  );
-
-  const rightLogoMaxHeightPx = toFiniteNumber(
-    row.Header_Right_Logo_Max_Height_px,
-    sharedLogoMaxHeightPx
-  );
-
-  const leftLogo = leftUrl
-    ? `<img src="${leftUrl}" style="max-height:${leftLogoMaxHeightPx}px; max-width:260px; object-fit:contain;" />`
-    : "";
-
-  const rightLogo = rightUrl
-    ? `<img src="${rightUrl}" style="max-height:${rightLogoMaxHeightPx}px; max-width:260px; object-fit:contain;" />`
-    : "";
+  const leftLogo = buildHeaderLogoImg(leftUrl, { align: "left" });
+  const rightLogo = buildHeaderLogoImg(rightUrl, { align: "right" });
 
   return wrapPlaywrightTemplate(`
     <div style="
       width:100%;
-      height:${headerHeightMm}mm;
+      min-height:${headerHeightMm}mm;
+      height:auto;
       display:flex;
       align-items:center;
       justify-content:space-between;
@@ -220,8 +236,8 @@ function buildHeaderHtmlFromLogoUrls(row = {}) {
       box-sizing:border-box;
       font-size:8px;
     ">
-      <div style="text-align:left;">${leftLogo}</div>
-      <div style="text-align:right;">${rightLogo || buildDefaultRefexTextLogoHtml()}</div>
+      <div style="text-align:left; flex:1 1 auto;">${leftLogo}</div>
+      <div style="text-align:right; flex:1 1 auto;">${rightLogo || buildDefaultRefexTextLogoHtml()}</div>
     </div>
   `, "header");
 }
@@ -308,7 +324,7 @@ function mapLetterhead(row = {}, baseUrl = "") {
   const headerHeightMm = toFiniteNumber(row.Header_Height_mm, 18);
 
   const generatedHeaderHtml = buildHeaderHtmlFromLogoUrls(row);
-  const fallbackHeaderHtml = normalizeHtmlAssetUrls(row.Header_HTML || "", baseUrl);
+  const fallbackHeaderHtml = normalizeHeaderHtml(normalizeHtmlAssetUrls(row.Header_HTML || "", baseUrl));
   const rawHeaderHtml = generatedHeaderHtml || wrapPlaywrightTemplate(fallbackHeaderHtml || buildDefaultRefexTextLogoHtml(), "header");
 
   const footerSourceHtml = normalizeHtmlAssetUrls(row.Footer_HTML || "", baseUrl) || buildDefaultRefexFooterHtml();
@@ -368,11 +384,14 @@ module.exports = {
   normalizeHtmlAssetUrls,
   normalizeFooterSize,
   normalizeFooterLayout,
+  normalizeHeaderHtml,
+  normalizeHeaderImages,
   sanitizeInlineStyle,
   wrapPlaywrightTemplate,
   buildLetterheadTokens,
   buildDefaultRefexTextLogoHtml,
   buildDefaultRefexFooterHtml,
+  buildHeaderLogoImg,
   estimateFooterHeightMm,
   estimateHeaderHeightMm,
   cleanUrl,
