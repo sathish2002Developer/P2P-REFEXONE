@@ -1,0 +1,275 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PURCHASE ORDER</title>
+  <style>
+    @page { size: A4; margin: 18mm 15mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12.5px;
+      color: #1a1a1a;
+      max-width: 850px;
+      margin: 0 auto;
+      padding: 0;
+      line-height: 1.4;
+    }
+
+    .title {
+      text-align: center;
+      font-weight: bold;
+      font-size: 16px;
+      letter-spacing: 1px;
+      margin: 10px 0 14px 0;
+    }
+
+    .po-meta {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+
+    .info-box {
+      border: 1px solid #000;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+    }
+    .info-box p { margin: 3px 0; }
+    .info-box a { color: #1155cc; text-decoration: underline; }
+
+    table.price {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 0;
+      page-break-inside: auto;
+    }
+    table.price caption {
+      border: 1px solid #000;
+      border-bottom: none;
+      padding: 5px;
+      font-weight: bold;
+      text-align: center;
+      background: #f2f2f2;
+    }
+    table.price th, table.price td {
+      border: 1px solid #000;
+      padding: 6px 8px;
+      vertical-align: top;
+      font-size: 12px;
+    }
+    table.price th { background: #f2f2f2; text-align: center; }
+    table.price td.center { text-align: center; }
+    table.price td.right { text-align: right; }
+    table.price tr.total td { font-weight: bold; }
+    table.price .spec-block p { margin: 6px 0; }
+    table.price .spec-title { font-weight: bold; text-decoration: underline; margin-top: 10px; }
+
+    .amount-words {
+      border: 1px solid #000;
+      border-top: none;
+      padding: 8px 10px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12.5px;
+      margin-bottom: 16px;
+    }
+    .amount-words .label { font-weight: bold; white-space: nowrap; margin-right: 10px; }
+    .amount-words .value { font-weight: bold; text-align: right; }
+
+    table.terms {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      page-break-inside: auto;
+    }
+    table.terms caption {
+      font-weight: bold;
+      padding: 6px;
+      border: 1px solid #000;
+      border-bottom: none;
+      background: #f2f2f2;
+    }
+    table.terms th, table.terms td {
+      border: 1px solid #000;
+      padding: 7px 9px;
+      vertical-align: top;
+      text-align: left;
+    }
+    table.terms th { background: #f2f2f2; }
+    table.terms td.head-col, table.terms th.head-col { width: 15%; font-weight: bold; }
+    table.terms td.sno-col, table.terms th.sno-col { width: 6%; text-align: center; }
+
+    h2.annexure-title {
+      text-align: center;
+      margin: 18px 0 4px 0;
+      font-size: 15px;
+      page-break-before: auto;
+    }
+    h3.annexure-sub {
+      text-align: center;
+      margin: 0 0 14px 0;
+      font-size: 13px;
+    }
+
+    .special-notes {
+      border: 1px solid #000;
+      padding: 12px 16px;
+      margin-top: 16px;
+      page-break-inside: avoid;
+    }
+    .special-notes p { margin: 6px 0; }
+    .special-notes .lbl { font-weight: bold; }
+    .special-notes a { color: #1155cc; text-decoration: underline; }
+    .sig-space { height: 60px; }
+
+    .ack-box {
+      border: 1px solid #000;
+      padding: 12px 16px;
+      margin-top: 16px;
+      page-break-inside: avoid;
+    }
+    .ack-box .sig-gap { height: 70px; }
+
+    .po-body { margin-bottom: 16px; }
+
+    tr { page-break-inside: avoid; }
+  </style>
+</head>
+<body>
+  <div class="title">PURCHASE ORDER</div>
+  <section class="po-body">
+    
+    <div class="po-meta">
+      <span>Purchase Order No. &nbsp;VBEFPL/MSSPL/CBG/VIZAG/26-27/027</span>
+      <span>Date:22/07/2026</span>
+    </div>
+
+    <div class="info-box">
+      <p><strong>To</strong></p>
+      <p><strong>MECORD SYSTEMS AND SERVICES PRIVATE LIMITED,</strong></p>
+      <p>GALA NO 314, HILL VIEW INDUSTRIAL ESTATE</p>
+      <p><strong>GST No:</strong> 27AAACM8582E1ZB</p>
+      <p><strong>PAN No:</strong> AAACM8582E</p>
+      <p><strong>MSME Details:</strong> UDYAM-MH-19-0002808</p>
+      <p>&nbsp;</p>
+      <p><strong>Ref.No/Date.</strong> 1.Quote No.: O/ref.2007/ENQ-0912/26-27/SY.., Date: 20/07/2026.</p>
+      <p>&nbsp;</p>
+      <p><strong>Subject:</strong> Supply of Vaisala Dewpoint Transmitter DMT143 at Visakhapatnam CBG plant</p>
+      <p>&nbsp;</p>
+      <p><strong>Contact Person:</strong> Mr. N Balaji</p>
+      <p><strong>Email of contact person:</strong> <a href="mailto:sales@mecord.com">sales@mecord.com</a></p>
+      <p><strong>Mobile no of contact person:</strong> +91-98200 34894</p>
+    </div>
+  
+    <table class="price">
+      <caption>PRICE SCHEDULE</caption>
+      <tr>
+        <th style="width:6%">SI.No</th>
+        <th>Description Of Work</th>
+        <th style="width:8%">UOM</th>
+        <th style="width:6%">Qty</th>
+        <th style="width:14%">Unit Rate Rs.</th>
+        <th style="width:14%">TOTAL Amt Rs.</th>
+      </tr>
+      
+    <tr>
+      <td class="center">1</td>
+      <td><div class="spec-block"><p>Supply of Vaisala Dewpoint Transmitter DMT143</p><p><strong>Includes:</strong><br>DMT143 Dewpoint Transmitter</p></div></td>
+      <td class="center">No&#039;s</td>
+      <td class="center">1</td>
+      <td class="right">67,000.00</td>
+      <td class="right">67,000.00</td>
+    </tr>
+  
+      <tr class="total">
+        <td colspan="5">SubTotal</td>
+        <td class="right">67,000.00</td>
+      </tr>
+      <tr class="total">
+        <td colspan="5">Add: GST@18% Extra</td>
+        <td class="right">12,060.00</td>
+      </tr>
+      <tr class="total">
+        <td colspan="5">GrandTotal</td>
+        <td class="right">79,060.00</td>
+      </tr>
+    </table>
+    <div class="amount-words">
+      <span class="label">Amount In Words:</span>
+      <span class="value">Seventy Nine Thousand Sixty Rupees and Zero Paisa Only.</span>
+    </div>
+  
+  </section>
+  
+    <table class="terms">
+      <caption>Terms and Conditions</caption>
+      
+    <tr>
+      <th class="head-col">Inco Terms</th>
+      <td>DAP site,</td>
+    </tr>
+  
+    </table>
+  
+  
+    <h2 class="annexure-title">ANNEXURE-I</h2>
+    <h3 class="annexure-sub">COMMERCIAL TERMS AND CONDITIONS</h3>
+    <table class="terms">
+      <tr>
+        <th class="sno-col">S.NO.</th>
+        <th style="width:14%">HEADERS</th>
+        <th>TERMS AND CONDITIONS</th>
+      </tr>
+      
+    <tr>
+      <td class="sno-col">1</td>
+      <td><strong>Parties</strong></td>
+      <td>Sample annexure text.</td>
+    </tr>
+  
+    </table>
+  
+  
+    <div class="special-notes">
+      <p><strong>SPECIAL NOTES (if any):</strong></p>
+
+      <p><span class="lbl">Site Address:</span></p>
+
+      <p><span class="lbl">Contact person at the site:</span> Name:, Phone: ,</p>
+      
+
+      <p><span class="lbl">Project Manager at the head office:</span> <br>
+      </p>
+
+      <p><span class="lbl">Invoicing address:</span><br></p>
+
+      <p><span class="lbl">Original invoice to be sent at:</span></p>
+      <p><strong>Refex Group of Companies,</strong><br>
+      67, Bazullah Road, Parthasarathi Puram, T. Nagar, Chennai, Tamil Nadu – 600 017.<br>
+      <span class="lbl">Contact person:</span> Name:, Contact Number:,<br>
+      </p>
+
+      <p><strong>FOR Vyzag Bio Energy Fuel Private Limited,</strong></p>
+      <div class="sig-space"></div>
+      <p>22/07/2026<br>
+      <strong>Authorized Signatory</strong><br>
+      Name: Mr. Rajeev Vaze<br>
+      Designation: Head – SCM</p>
+    </div>
+
+    <div class="ack-box">
+      <p><strong>Acknowledgment and Acceptance by Seller/Supplier</strong></p>
+      <p>We received, read, and understood the terms and conditions mentioned in this order. We hereby acknowledge, confirm and accept the above terms and conditions and the same shall be binding on us as &ldquo;Seller&rdquo;.</p>
+      <p><strong>FOR MECORD SYSTEMS AND SERVICES PRIVATE LIMITED,</strong></p>
+      <div class="sig-gap"></div>
+      <p><strong>Authorized Signatory</strong><br>
+      <strong>Dated:</strong><br>
+      <strong>Place:</strong></p>
+    </div>
+  
+</body>
+</html>

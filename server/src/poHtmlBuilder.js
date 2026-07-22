@@ -1,60 +1,206 @@
 const { renderTemplate, escapeHtml } = require("./templateRenderer");
 
-function renderRows(rows = "", data = {}) {
+function renderAnnexureRows(rows = "", data = {}) {
   if (!Array.isArray(rows)) return "";
 
   return rows
     .filter((row) => row && row.is_included !== false)
     .sort((a, b) => Number(a.sequence_no || 0) - Number(b.sequence_no || 0))
-    .map((row) => rowMapper(row, data))
-    .join("");
-}
+    .map((row) => {
+      const header = escapeHtml(row.term_header || row.header || "");
+      const descriptionTemplate = row.term_description || row.terms_and_conditions || "";
+      const description = renderTemplate(descriptionTemplate, data, { missingTokenMode: "keep" });
 
-function rowMapper(row, data) {
-  const header = escapeHtml(row.term_header || row.header || "");
-  const descriptionTemplate = row.term_description || row.terms_and_conditions || "";
-  const description = renderTemplate(descriptionTemplate, data, { missingTokenMode: "keep" });
-
-  return `
+      return `
     <tr>
-      <td class="seq">${escapeHtml(row.sequence_no || "")}</td>
-      <td class="head">${header}</td>
+      <td class="sno-col">${escapeHtml(row.sequence_no || "")}</td>
+      <td><strong>${header}</strong></td>
       <td>${description}</td>
     </tr>
   `;
+    })
+    .join("");
+}
+
+function renderTermsRows(rows = [], data = {}) {
+  if (!Array.isArray(rows)) return "";
+
+  return rows
+    .filter((row) => row && row.is_included !== false)
+    .sort((a, b) => Number(a.sequence_no || 0) - Number(b.sequence_no || 0))
+    .map((row) => {
+      const header = escapeHtml(row.term_header || row.header || "");
+      const descriptionTemplate = row.term_description || row.terms_and_conditions || "";
+      const description = renderTemplate(descriptionTemplate, data, { missingTokenMode: "keep" });
+
+      return `
+    <tr>
+      <th class="head-col">${header}</th>
+      <td>${description}</td>
+    </tr>
+  `;
+    })
+    .join("");
 }
 
 function buildTermsTable(rows = [], data = {}) {
   return `
-    <section class="section">
-      <h2>Terms and Conditions</h2>
-      <table class="terms-table">
-        <tbody>
-          ${renderRows(rows, data)}
-        </tbody>
-      </table>
-    </section>
+    <table class="terms">
+      <caption>Terms and Conditions</caption>
+      ${renderTermsRows(rows, data)}
+    </table>
   `;
 }
 
 function buildAnnexureITable(rows = [], data = {}) {
   return `
-    <section class="section page-break-before">
-      <h2>ANNEXURE-I</h2>
-      <h3>COMMERCIAL TERMS AND CONDITIONS</h3>
-      <table class="annexure-table">
-        <thead>
-          <tr>
-            <th class="seq">S.NO.</th>
-            <th class="head">HEADERS</th>
-            <th>TERMS AND CONDITIONS</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${renderRows(rows, data)}
-        </tbody>
-      </table>
-    </section>
+    <h2 class="annexure-title">ANNEXURE-I</h2>
+    <h3 class="annexure-sub">COMMERCIAL TERMS AND CONDITIONS</h3>
+    <table class="terms">
+      <tr>
+        <th class="sno-col">S.NO.</th>
+        <th style="width:14%">HEADERS</th>
+        <th>TERMS AND CONDITIONS</th>
+      </tr>
+      ${renderAnnexureRows(rows, data)}
+    </table>
+  `;
+}
+
+function buildPoStyles() {
+  return `
+    @page { size: A4; margin: 18mm 15mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12.5px;
+      color: #1a1a1a;
+      max-width: 850px;
+      margin: 0 auto;
+      padding: 0;
+      line-height: 1.4;
+    }
+
+    .title {
+      text-align: center;
+      font-weight: bold;
+      font-size: 16px;
+      letter-spacing: 1px;
+      margin: 10px 0 14px 0;
+    }
+
+    .po-meta {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+
+    .info-box {
+      border: 1px solid #000;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+    }
+    .info-box p { margin: 3px 0; }
+    .info-box a { color: #1155cc; text-decoration: underline; }
+
+    table.price {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 0;
+      page-break-inside: auto;
+    }
+    table.price caption {
+      border: 1px solid #000;
+      border-bottom: none;
+      padding: 5px;
+      font-weight: bold;
+      text-align: center;
+      background: #f2f2f2;
+    }
+    table.price th, table.price td {
+      border: 1px solid #000;
+      padding: 6px 8px;
+      vertical-align: top;
+      font-size: 12px;
+    }
+    table.price th { background: #f2f2f2; text-align: center; }
+    table.price td.center { text-align: center; }
+    table.price td.right { text-align: right; }
+    table.price tr.total td { font-weight: bold; }
+    table.price .spec-block p { margin: 6px 0; }
+    table.price .spec-title { font-weight: bold; text-decoration: underline; margin-top: 10px; }
+
+    .amount-words {
+      border: 1px solid #000;
+      border-top: none;
+      padding: 8px 10px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12.5px;
+      margin-bottom: 16px;
+    }
+    .amount-words .label { font-weight: bold; white-space: nowrap; margin-right: 10px; }
+    .amount-words .value { font-weight: bold; text-align: right; }
+
+    table.terms {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      page-break-inside: auto;
+    }
+    table.terms caption {
+      font-weight: bold;
+      padding: 6px;
+      border: 1px solid #000;
+      border-bottom: none;
+      background: #f2f2f2;
+    }
+    table.terms th, table.terms td {
+      border: 1px solid #000;
+      padding: 7px 9px;
+      vertical-align: top;
+      text-align: left;
+    }
+    table.terms th { background: #f2f2f2; }
+    table.terms td.head-col, table.terms th.head-col { width: 15%; font-weight: bold; }
+    table.terms td.sno-col, table.terms th.sno-col { width: 6%; text-align: center; }
+
+    h2.annexure-title {
+      text-align: center;
+      margin: 18px 0 4px 0;
+      font-size: 15px;
+      page-break-before: auto;
+    }
+    h3.annexure-sub {
+      text-align: center;
+      margin: 0 0 14px 0;
+      font-size: 13px;
+    }
+
+    .special-notes {
+      border: 1px solid #000;
+      padding: 12px 16px;
+      margin-top: 16px;
+      page-break-inside: avoid;
+    }
+    .special-notes p { margin: 6px 0; }
+    .special-notes .lbl { font-weight: bold; }
+    .special-notes a { color: #1155cc; text-decoration: underline; }
+    .sig-space { height: 60px; }
+
+    .ack-box {
+      border: 1px solid #000;
+      padding: 12px 16px;
+      margin-top: 16px;
+      page-break-inside: avoid;
+    }
+    .ack-box .sig-gap { height: 70px; }
+
+    .po-body { margin-bottom: 16px; }
+
+    tr { page-break-inside: avoid; }
   `;
 }
 
@@ -63,139 +209,14 @@ function buildPoHtml({ title = "PURCHASE ORDER", bodyHtml = "", terms = [], anne
 
   return `
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <style>
-    @page {
-      size: A4;
-    }
-
-    body {
-      font-family: Arial, sans-serif;
-      font-size: 11px;
-      color: #111;
-      line-height: 1.35;
-    }
-
-    h1 {
-      text-align: center;
-      font-size: 18px;
-      margin: 0 0 18px 0;
-      letter-spacing: 0.5px;
-    }
-
-    h2 {
-      font-size: 14px;
-      margin: 18px 0 8px 0;
-    }
-
-    h3 {
-      text-align: center;
-      font-size: 12px;
-      margin: 4px 0 12px 0;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      page-break-inside: auto;
-    }
-
-    tr {
-      page-break-inside: avoid;
-      page-break-after: auto;
-    }
-
-    th, td {
-      border: 1px solid #111;
-      padding: 6px;
-      vertical-align: top;
-    }
-
-    th {
-      text-align: center;
-      font-weight: bold;
-    }
-
-    .seq {
-      width: 8%;
-      text-align: center;
-    }
-
-    .head {
-      width: 24%;
-      font-weight: bold;
-    }
-
-    .section {
-      margin-top: 16px;
-    }
-
-    .page-break-before {
-      page-break-before: always;
-    }
-
-    .po-body {
-      margin-bottom: 16px;
-    }
-
-    .po-to-box {
-      border: 1px solid #111;
-      padding: 8px 10px;
-      margin-bottom: 14px;
-    }
-
-    .po-to-box p {
-      margin: 4px 0;
-    }
-
-    .meta-line {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-
-    .right {
-      float: right;
-      text-align: right;
-    }
-
-    .num {
-      text-align: right;
-      white-space: nowrap;
-    }
-
-    .total-label {
-      text-align: right;
-      font-weight: bold;
-    }
-
-    .special-notes,
-    .seller-acknowledgment {
-      border: 1px solid #111;
-      padding: 10px 12px;
-      margin-top: 14px;
-      box-sizing: border-box;
-      page-break-inside: avoid;
-    }
-
-    .special-notes h2,
-    .seller-acknowledgment h2 {
-      margin-top: 0;
-      margin-bottom: 12px;
-      font-size: 15px;
-      font-weight: 700;
-    }
-
-    .special-notes p,
-    .seller-acknowledgment p {
-      margin: 8px 0;
-    }
-  </style>
+  <title>${escapeHtml(title)}</title>
+  <style>${buildPoStyles()}</style>
 </head>
 <body>
-  <h1>${escapeHtml(title)}</h1>
+  <div class="title">${escapeHtml(title)}</div>
   <section class="po-body">
     ${renderedBody}
   </section>

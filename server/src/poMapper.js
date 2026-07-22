@@ -99,9 +99,11 @@ function numberToWords(amount) {
 
     if (paise > 0) {
         words += " and " + convert(paise) + " Paise";
+    } else {
+        words += " and Zero Paisa";
     }
 
-    return words + " Only";
+    return words + " Only.";
 }
 
 // One Crore Twenty Three Lakh Forty Five Thousand Six Hundred Seventy Eight Only
@@ -165,10 +167,13 @@ function mapLineItems(po = {}, lineItemsTableKey = "Table::Copy_PR_Line_Items") 
   }));
 }
 
-function optionalPoLine(label, value) {
+function optionalPoLine(label, value, { isEmail = false } = {}) {
   const clean = String(value ?? "").trim();
   if (!clean) return "";
-  return `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(clean)}</p>`;
+  const content = isEmail
+    ? `<a href="mailto:${escapeHtml(clean)}">${escapeHtml(clean)}</a>`
+    : escapeHtml(clean);
+  return `<p><strong>${escapeHtml(label)}:</strong> ${content}</p>`;
 }
 
 function optionalRefLine(refNo, refDate) {
@@ -176,64 +181,85 @@ function optionalRefLine(refNo, refDate) {
   const cleanDate = String(refDate ?? "").trim();
   if (!cleanRef && !cleanDate) return "";
   if (cleanRef && cleanDate) {
-    return `<p><strong>Ref.No:</strong> ${escapeHtml(cleanRef)} / <strong>Date:</strong> ${escapeHtml(cleanDate)}</p>`;
+    return `<p><strong>Ref.No/Date.</strong> 1.Quote No.: ${escapeHtml(cleanRef)}., Date: ${escapeHtml(cleanDate)}.</p>`;
   }
-  if (cleanRef) return `<p><strong>Ref.No:</strong> ${escapeHtml(cleanRef)}</p>`;
-  return `<p><strong>Date:</strong> ${escapeHtml(cleanDate)}</p>`;
+  if (cleanRef) return `<p><strong>Ref.No/Date.</strong> 1.Quote No.: ${escapeHtml(cleanRef)}.</p>`;
+  return `<p><strong>Ref.No/Date.</strong> Date: ${escapeHtml(cleanDate)}.</p>`;
 }
 
-function buildPriceScheduleHtml(lineItems = [], totals = {}) {
+function formatLineItemDescription(item = {}) {
+  const name = String(item.item_Name ?? "").trim();
+  const description = String(item.description ?? "").trim();
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(description);
+
+  const nameHtml = name ? `<p>${escapeHtml(name)}</p>` : "";
+  let descriptionHtml = "";
+
+  if (description) {
+    descriptionHtml = looksLikeHtml ? description : `<p>${escapeHtml(description)}</p>`;
+  }
+
+  return `<div class="spec-block">${nameHtml}${descriptionHtml}</div>`;
+}
+
+function resolveGstLabel(lineItems = [], po = {}) {
+  const explicit = String(po.GST_Label || po.Tax_Label || "").trim();
+  if (explicit) return explicit;
+
+  const percentages = [...new Set(
+    lineItems
+      .map((item) => String(item.tax_percentage ?? "").replace(/[^\d.]/g, "").trim())
+      .filter(Boolean)
+  )];
+
+  if (percentages.length === 1) {
+    return `GST@${percentages[0]}% Extra`;
+  }
+
+  return "GST Extra";
+}
+
+function buildPriceScheduleHtml(lineItems = [], totals = {}, gstLabel = "GST Extra") {
   const rowsHtml = lineItems.map((item) => `
     <tr>
-      <td class="seq">${escapeHtml(item.si_no)}</td>
-     <td>
-    <strong>${escapeHtml(item.item_Name)}</strong><br>
-    ${escapeHtml(item.description)}
-</td>
-      <td>${escapeHtml(item.uom || "-")}</td>
-      <td class="num">${escapeHtml(item.quantity)}</td>
-      <td class="num">${escapeHtml(item.unit_rate)}</td>
-      <td class="num">${escapeHtml(item.tax_percentage || "-")}</td>
-      <td class="num">${escapeHtml(item.tax_amount || "0")}</td>
-      <td class="num">${escapeHtml(item.total_amount)}</td>
+      <td class="center">${escapeHtml(item.si_no)}</td>
+      <td>${formatLineItemDescription(item)}</td>
+      <td class="center">${escapeHtml(item.uom || "No's")}</td>
+      <td class="center">${escapeHtml(item.quantity)}</td>
+      <td class="right">${escapeHtml(item.unit_rate)}</td>
+      <td class="right">${escapeHtml(item.total_amount)}</td>
     </tr>
   `).join("");
 
   return `
-    <h2>PRICE SCHEDULE</h2>
-    <table class="price-table">
-      <thead>
-        <tr>
-          <th class="seq">SI.No</th>
-          <th>Description Of Work</th>
-          <th>UOM</th>
-          <th>Qty</th>
-          <th>Unit Rate Rs.</th>
-          <th>Tax Percentage</th>
-          <th>Tax Amount</th>
-          <th>TOTAL Amt Rs.</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rowsHtml}
-        <tr>
-          <td colspan="7" class="total-label">SubTotal</td>
-          <td class="num">${escapeHtml(totals.subtotal || "")}</td>
-        </tr>
-        <tr>
-          <td colspan="7" class="total-label">Add: GST extra Amount</td>
-          <td class="num">${escapeHtml(totals.total_tax_amount || "0")}</td>
-        </tr>
-        <tr>
-          <td colspan="7" class="total-label">GrandTotal</td>
-          <td class="num">${escapeHtml(totals.grand_total || "")}</td>
-        </tr>
-        <tr>
-          <td colspan="2" class="total-label">Amount In Words:</td>
-          <td colspan="6">${escapeHtml(totals.amount_in_words || "")}</td>
-        </tr>
-      </tbody>
+    <table class="price">
+      <caption>PRICE SCHEDULE</caption>
+      <tr>
+        <th style="width:6%">SI.No</th>
+        <th>Description Of Work</th>
+        <th style="width:8%">UOM</th>
+        <th style="width:6%">Qty</th>
+        <th style="width:14%">Unit Rate Rs.</th>
+        <th style="width:14%">TOTAL Amt Rs.</th>
+      </tr>
+      ${rowsHtml}
+      <tr class="total">
+        <td colspan="5">SubTotal</td>
+        <td class="right">${escapeHtml(totals.subtotal || "")}</td>
+      </tr>
+      <tr class="total">
+        <td colspan="5">Add: ${escapeHtml(gstLabel)}</td>
+        <td class="right">${escapeHtml(totals.total_tax_amount || "0")}</td>
+      </tr>
+      <tr class="total">
+        <td colspan="5">GrandTotal</td>
+        <td class="right">${escapeHtml(totals.grand_total || "")}</td>
+      </tr>
     </table>
+    <div class="amount-words">
+      <span class="label">Amount In Words:</span>
+      <span class="value">${escapeHtml(totals.amount_in_words || "")}</span>
+    </div>
   `;
 }
 
@@ -241,71 +267,61 @@ function buildPriceScheduleHtml(lineItems = [], totals = {}) {
 function buildSpecialNotesHtml(po = {}, tokens = {}) {
   const buyerCompanyName = tokens.buyer_company_name || tokens.buyer_company_code || "";
   const sellerCompanyName = tokens.seller_company_name || "";
+  const signatoryDate = formatDateDDMMYYYY(po.PO_Signatory_Date || po.Purchase_Order_Date || po._modified_at || "");
+  const signatoryTime = String(po.PO_Signatory_Time || "").trim();
+
+  const siteContactEmail = String(po.Site_Contact_Email || "").trim();
+  const siteContactEmailHtml = siteContactEmail
+    ? `<a href="mailto:${escapeHtml(siteContactEmail)}">${escapeHtml(siteContactEmail)}</a>`
+    : "";
+
+  const pmEmail = String(po.Project_Manager_Email || "").trim();
+  const pmEmailHtml = pmEmail
+    ? `<a href="mailto:${escapeHtml(pmEmail)}">${escapeHtml(pmEmail)}</a>`
+    : "";
+
+  const invoiceContactEmail = String(po.Invoice_Contact_Email || po.Created_By_Email || "").trim();
+  const invoiceContactEmailHtml = invoiceContactEmail
+    ? `<a href="mailto:${escapeHtml(invoiceContactEmail)}">${escapeHtml(invoiceContactEmail)}</a>`
+    : "";
 
   return `
-    <section class="section page-break-before special-notes">
-      <h2>SPECIAL NOTES (if any):</h2>
+    <div class="special-notes">
+      <p><strong>SPECIAL NOTES (if any):</strong></p>
 
-      <p><strong>Site Address:</strong><br>${escapeHtml(po.Delivery_Location || "")}</p>
+      <p><span class="lbl">Site Address:</span>${escapeHtml(po.Delivery_Location || "")}</p>
 
-      <p>
-        <strong>Contact person at the site:</strong>
-        Name: ${escapeHtml(po.Site_Contact_Person || "")}
-        Email: ${escapeHtml(po.Site_Contact_Email || "")}
-        Phone: ${escapeHtml(po.Site_Contact_Phone || "")}
-      </p>
+      <p><span class="lbl">Contact person at the site:</span> Name:${escapeHtml(po.Site_Contact_Person || "")}, Phone: ${escapeHtml(po.Site_Contact_Phone || "")},</p>
+      ${siteContactEmail ? `<p>Email: ${siteContactEmailHtml}</p>` : ""}
 
-      <p>
-        <strong>Project Manager at the Head Office:</strong>
-        Name: ${escapeHtml(po.Project_Manager_Name || "")}
-        Email: ${escapeHtml(po.Project_Manager_Email || "")}
-        Phone: ${escapeHtml(po.Project_Manager_Phone || "")}
-      </p>
+      <p><span class="lbl">Project Manager at the head office:</span> ${escapeHtml(po.Project_Manager_Name || "")}${po.Project_Manager_Phone ? `, Phone:${escapeHtml(po.Project_Manager_Phone)},` : ""}<br>
+      ${pmEmail ? `Email: ${pmEmailHtml}` : ""}</p>
 
-      <p><strong>Invoicing address:</strong><br>${escapeHtml(po.Invoicing_Address || "")}</p>
+      <p><span class="lbl">Invoicing address:</span><br>${escapeHtml(po.Invoicing_Address || "")}</p>
 
-      <p>
-        <strong>Original Invoice to be sent to:</strong><br>
-        Refex Group of Companies,<br>
-        67, Bazullah Road, Parthasarathi Puram, T. Nagar, Chennai, Tamil Nadu – 600 017.
-      </p>
+      <p><span class="lbl">Original invoice to be sent at:</span></p>
+      <p><strong>Refex Group of Companies,</strong><br>
+      67, Bazullah Road, Parthasarathi Puram, T. Nagar, Chennai, Tamil Nadu – 600 017.<br>
+      <span class="lbl">Contact person:</span> Name:${escapeHtml(po.Invoice_Contact_Name || po.CreatedBy || po._created_by?.Name || "")}, Contact Number:${escapeHtml(po.Invoice_Contact_Phone || po.Created_By_Phone || "")},<br>
+      ${invoiceContactEmail ? `E-Mail: ${invoiceContactEmailHtml}` : ""}</p>
 
-      <p>
-        Contact person: Name:${escapeHtml(po.CreatedBy || po._created_by?.Name || "")},
-        Contact Number: ${escapeHtml(po.Created_By_Phone || "")},<br>
-        E-Mail: ${escapeHtml(po.Vendor_Email || "")}
-      </p>
+      <p><strong>FOR ${escapeHtml(buyerCompanyName)},</strong></p>
+      <div class="sig-space"></div>
+      <p>${signatoryDate ? `${escapeHtml(signatoryDate)} ${escapeHtml(signatoryTime)}`.trim() + "<br>" : ""}
+      <strong>Authorized Signatory</strong><br>
+      Name: Mr. Rajeev Vaze<br>
+      Designation: Head – SCM</p>
+    </div>
 
-      <p><strong>For ${escapeHtml(buyerCompanyName)},</strong></p>
-
-      <div class="scm-signature-slot"></div>
-
-      <p>
-        <strong>Authorized Signatory</strong><br>
-        Name: Mr. Rajeev Vaze<br>
-        Designation: Head – SCM
-      </p>
-    </section>
-
-    <section class="section page-break-before seller-acknowledgment">
-      <h2>Acknowledgment and Acceptance by Seller/Supplier</h2>
-
-      <p>
-        We received, read, and understood the terms and conditions mentioned in this order.
-        We hereby acknowledge, confirm and accept the above terms and conditions and the same
-        shall be binding on us as “Seller”.
-      </p>
-
-      <p><strong>For ${escapeHtml(sellerCompanyName)},</strong></p>
-
-      <div style="height:55px;"></div>
-
-      <p>
-        Authorized Signatory:<br>
-        Dated:<br>
-        Place:
-      </p>
-    </section>
+    <div class="ack-box">
+      <p><strong>Acknowledgment and Acceptance by Seller/Supplier</strong></p>
+      <p>We received, read, and understood the terms and conditions mentioned in this order. We hereby acknowledge, confirm and accept the above terms and conditions and the same shall be binding on us as &ldquo;Seller&rdquo;.</p>
+      <p><strong>FOR ${escapeHtml(sellerCompanyName)},</strong></p>
+      <div class="sig-gap"></div>
+      <p><strong>Authorized Signatory</strong><br>
+      <strong>Dated:</strong><br>
+      <strong>Place:</strong></p>
+    </div>
   `;
 }
 
@@ -313,32 +329,33 @@ function buildPurchaseOrderBodyHtml(po = {}, config = {}) {
   const lineItemsTableKey = `Table::${config.lineItemsTableId || "Model_D1wv4eeZCS"}`;
   const tokens = mapPurchaseOrderTokens(po);
   const lineItems = mapLineItems(po, lineItemsTableKey);
+  const gstLabel = resolveGstLabel(lineItems, po);
 
   const toSection = `
-    <div class="po-to-box">
-      <div class="meta-line">
-        <span><strong>Purchase Order Number:</strong> ${escapeHtml(tokens.po_number)}</span>
-        <span class="right"><strong>Date:</strong> ${escapeHtml(tokens.po_date)}</span>
-      </div>
+    <div class="po-meta">
+      <span>Purchase Order No. &nbsp;${escapeHtml(tokens.po_number)}</span>
+      <span>Date:${escapeHtml(tokens.po_date)}</span>
+    </div>
 
+    <div class="info-box">
       <p><strong>To</strong></p>
-      <p>
-        ${escapeHtml(tokens.seller_company_name)}<br>
-        ${escapeHtml(tokens.seller_registered_address)}
-      </p>
-      ${optionalPoLine("Vendor Code", tokens.vendor_code)}
+      <p><strong>${escapeHtml(tokens.seller_company_name)}${tokens.seller_company_name ? "," : ""}</strong></p>
+      <p>${escapeHtml(tokens.seller_registered_address)}</p>
       ${optionalPoLine("GST No", tokens.seller_gst_no)}
       ${optionalPoLine("PAN No", tokens.seller_pan_no)}
       ${optionalPoLine("MSME Details", tokens.seller_msme_no)}
+      <p>&nbsp;</p>
       ${optionalRefLine(tokens.ref_no, tokens.ref_date)}
+      <p>&nbsp;</p>
       ${optionalPoLine("Subject", tokens.subject)}
+      <p>&nbsp;</p>
       ${optionalPoLine("Contact Person", tokens.seller_contact_person)}
-      ${optionalPoLine("Email of the contact person", tokens.seller_email)}
-      ${optionalPoLine("Mobile number of the contact person", tokens.seller_phone)}
+      ${optionalPoLine("Email of contact person", tokens.seller_email, { isEmail: true })}
+      ${optionalPoLine("Mobile no of contact person", tokens.seller_phone)}
     </div>
   `;
 
-  const priceSchedule = buildPriceScheduleHtml(lineItems, tokens);
+  const priceSchedule = buildPriceScheduleHtml(lineItems, tokens, gstLabel);
 
   return {
     title: "PURCHASE ORDER",
