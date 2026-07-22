@@ -10,7 +10,14 @@ function prepareTemplateHtml(html = "", slot = "body") {
   return wrapPlaywrightTemplate(content, slot);
 }
 
-async function renderHtmlToPdfBuffer({ html, headerHtml = "", footerHtml = "", marginTopMm = 20, marginBottomMm = 25 }) {
+async function renderHtmlToPdfBuffer({
+  html,
+  headerHtml = "",
+  footerHtml = "",
+  marginTopMm = 20,
+  marginBottomMm = 25,
+  footerHeightMm = 0
+}) {
   if (!html || typeof html !== "string") {
     throw new Error("renderHtmlToPdfBuffer requires non-empty html");
   }
@@ -19,8 +26,13 @@ async function renderHtmlToPdfBuffer({ html, headerHtml = "", footerHtml = "", m
   const hasHeader = Boolean(String(headerHtml || "").trim());
   const hasHeaderFooter = hasHeader || hasFooter;
 
+  const estimatedFooterReserve = footerHeightMm > 0 ? footerHeightMm + 18 : 0;
   const safeMarginTop = Math.max(Number(marginTopMm) || 20, hasHeader ? 22 : 15);
-  const safeMarginBottom = Math.max(Number(marginBottomMm) || 25, hasFooter ? 42 : 18);
+  const safeMarginBottom = Math.max(
+    Number(marginBottomMm) || 25,
+    estimatedFooterReserve,
+    hasFooter ? 52 : 18
+  );
 
   const browser = await chromium.launch({
     headless: true,

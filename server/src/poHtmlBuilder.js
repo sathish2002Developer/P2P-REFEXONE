@@ -1,85 +1,102 @@
 const { renderTemplate, escapeHtml } = require("./templateRenderer");
 
-function renderAnnexureRows(rows = "", data = {}) {
-  if (!Array.isArray(rows)) return "";
+function renderSingleAnnexureRow(row, data = {}) {
+  const header = escapeHtml(row.term_header || row.header || "");
+  const descriptionTemplate = row.term_description || row.terms_and_conditions || "";
+  const description = renderTemplate(descriptionTemplate, data, { missingTokenMode: "keep" });
 
-  return rows
-    .filter((row) => row && row.is_included !== false)
-    .sort((a, b) => Number(a.sequence_no || 0) - Number(b.sequence_no || 0))
-    .map((row) => {
-      const header = escapeHtml(row.term_header || row.header || "");
-      const descriptionTemplate = row.term_description || row.terms_and_conditions || "";
-      const description = renderTemplate(descriptionTemplate, data, { missingTokenMode: "keep" });
-
-      return `
+  return `
     <tr>
       <td class="sno-col">${escapeHtml(row.sequence_no || "")}</td>
       <td><strong>${header}</strong></td>
-      <td>${description}</td>
+      <td class="desc-col">${description}</td>
     </tr>
   `;
-    })
-    .join("");
+}
+
+function renderSingleTermsRow(row, data = {}) {
+  const header = escapeHtml(row.term_header || row.header || "");
+  const descriptionTemplate = row.term_description || row.terms_and_conditions || "";
+  const description = renderTemplate(descriptionTemplate, data, { missingTokenMode: "keep" });
+
+  return `
+    <tr>
+      <th class="head-col">${header}</th>
+      <td class="desc-col">${description}</td>
+    </tr>
+  `;
+}
+
+function sortedRows(rows = []) {
+  return rows
+    .filter((row) => row && row.is_included !== false)
+    .sort((a, b) => Number(a.sequence_no || 0) - Number(b.sequence_no || 0));
+}
+
+const annexureHeadRow = `
+  <tr>
+    <th class="sno-col">S.NO.</th>
+    <th style="width:14%">HEADERS</th>
+    <th>TERMS AND CONDITIONS</th>
+  </tr>
+`;
+
+function renderAnnexureRows(rows = "", data = {}) {
+  if (!Array.isArray(rows)) return "";
+  return sortedRows(rows).map((row) => renderSingleAnnexureRow(row, data)).join("");
 }
 
 function renderTermsRows(rows = [], data = {}) {
   if (!Array.isArray(rows)) return "";
-
-  return rows
-    .filter((row) => row && row.is_included !== false)
-    .sort((a, b) => Number(a.sequence_no || 0) - Number(b.sequence_no || 0))
-    .map((row) => {
-      const header = escapeHtml(row.term_header || row.header || "");
-      const descriptionTemplate = row.term_description || row.terms_and_conditions || "";
-      const description = renderTemplate(descriptionTemplate, data, { missingTokenMode: "keep" });
-
-      return `
-    <tr>
-      <th class="head-col">${header}</th>
-      <td>${description}</td>
-    </tr>
-  `;
-    })
-    .join("");
+  return sortedRows(rows).map((row) => renderSingleTermsRow(row, data)).join("");
 }
 
 function buildTermsTable(rows = [], data = {}) {
+  const sorted = sortedRows(rows);
+  if (!sorted.length) return "";
+
+  const rowTables = sorted.map((row, index) => `
+    <table class="terms terms-row-table">
+      ${index === 0 ? "<caption>Terms and Conditions</caption>" : ""}
+      <tbody>
+        ${renderSingleTermsRow(row, data)}
+      </tbody>
+    </table>
+  `).join("");
+
   return `
     <section class="terms-section">
-      <table class="terms">
-        <caption>Terms and Conditions</caption>
-        ${renderTermsRows(rows, data)}
-      </table>
+      ${rowTables}
     </section>
   `;
 }
 
 function buildAnnexureITable(rows = [], data = {}) {
+  const sorted = sortedRows(rows);
+  if (!sorted.length) return "";
+
+  const rowTables = sorted.map((row) => `
+    <table class="terms annexure-table annexure-row-table">
+      <thead>${annexureHeadRow}</thead>
+      <tbody>
+        ${renderSingleAnnexureRow(row, data)}
+      </tbody>
+    </table>
+  `).join("");
+
   return `
     <section class="annexure-section">
       <h2 class="annexure-title">ANNEXURE-I</h2>
       <h3 class="annexure-sub">COMMERCIAL TERMS AND CONDITIONS</h3>
-      <table class="terms annexure-table">
-        <thead>
-          <tr>
-            <th class="sno-col">S.NO.</th>
-            <th style="width:14%">HEADERS</th>
-            <th>TERMS AND CONDITIONS</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${renderAnnexureRows(rows, data)}
-        </tbody>
-      </table>
+      ${rowTables}
     </section>
   `;
 }
 
-function buildPoStyles() {
+function buildPoStyles(_footerReserveMm = 50) {
   return `
     @page {
       size: A4;
-      margin: 18mm 15mm 45mm 15mm;
     }
     * { box-sizing: border-box; }
     body {
@@ -95,6 +112,14 @@ function buildPoStyles() {
       print-color-adjust: exact;
     }
 
+    .po-body,
+    .terms-section,
+    .annexure-section,
+    .special-notes-section,
+    .vendor-ack-section {
+      padding-bottom: 2mm;
+    }
+
     table.price,
     table.terms {
       width: 100%;
@@ -102,6 +127,18 @@ function buildPoStyles() {
       page-break-inside: auto;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+    }
+
+    table.terms-row-table,
+    table.annexure-row-table {
+      page-break-inside: avoid;
+      break-inside: avoid;
+      margin: 0 0 0 0;
+    }
+
+    table.terms-row-table + table.terms-row-table,
+    table.annexure-row-table + table.annexure-row-table {
+      margin-top: -1px;
     }
 
     table.price th,
@@ -113,6 +150,12 @@ function buildPoStyles() {
       border: 1px solid #000;
       box-decoration-break: clone;
       -webkit-box-decoration-break: clone;
+    }
+
+    table.terms td.desc-col,
+    table.terms th.desc-col {
+      page-break-inside: auto;
+      break-inside: auto;
     }
 
     .title {
@@ -219,12 +262,15 @@ function buildPoStyles() {
     table.terms td.head-col, table.terms th.head-col { width: 15%; font-weight: bold; }
     table.terms td.sno-col, table.terms th.sno-col { width: 6%; text-align: center; }
     table.terms tr {
-      page-break-inside: auto;
-      break-inside: auto;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    table.annexure-row-table thead {
+      display: table-header-group;
     }
     table.annexure-table tbody tr {
-      page-break-inside: auto;
-      break-inside: auto;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     table.annexure-table td:last-child,
     table.terms td:last-child {
@@ -274,7 +320,15 @@ function buildPoStyles() {
   `;
 }
 
-function buildPoHtml({ title = "PURCHASE ORDER", bodyHtml = "", terms = [], annexureI = [], tokenData = {}, afterAnnexureHtml = "" }) {
+function buildPoHtml({
+  title = "PURCHASE ORDER",
+  bodyHtml = "",
+  terms = [],
+  annexureI = [],
+  tokenData = {},
+  afterAnnexureHtml = "",
+  footerReserveMm = 50
+}) {
   const renderedBody = renderTemplate(bodyHtml, tokenData, { missingTokenMode: "keep" });
 
   return `
@@ -283,7 +337,7 @@ function buildPoHtml({ title = "PURCHASE ORDER", bodyHtml = "", terms = [], anne
 <head>
   <meta charset="utf-8" />
   <title>${escapeHtml(title)}</title>
-  <style>${buildPoStyles()}</style>
+  <style>${buildPoStyles(footerReserveMm)}</style>
 </head>
 <body>
   <div class="title">${escapeHtml(title)}</div>

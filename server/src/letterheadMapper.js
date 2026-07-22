@@ -133,9 +133,9 @@ function estimateFooterHeightMm(html = "") {
   const content = String(html || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   if (!content) return 0;
 
-  let estimate = 34;
+  let estimate = 42;
   const lineBreaks = (String(html).match(/<br\b|<\/p>|<\/div>/gi) || []).length;
-  estimate += lineBreaks * 2.8;
+  estimate += lineBreaks * 3.2;
 
   if (/<img\b/i.test(html)) {
     const heightMatch = String(html).match(/<img\b[^>]*\sheight=["']?(\d+)/i);
@@ -152,7 +152,7 @@ function estimateFooterHeightMm(html = "") {
     }
   }
 
-  return Math.min(Math.max(estimate, 36), 52);
+  return Math.min(Math.max(estimate, 45), 68);
 }
 
 function estimateHeaderHeightMm(html = "", configuredHeightMm = 18) {
@@ -327,8 +327,8 @@ function mapLetterhead(row = {}, baseUrl = "") {
 
   const safeMarginBottom = Math.max(
     Number.isFinite(configuredMarginBottom) && configuredMarginBottom > 0 ? configuredMarginBottom : 0,
-    estimatedFooterHeightMm + 10,
-    normalizedFooterHtml ? 42 : 18
+    estimatedFooterHeightMm + 18,
+    normalizedFooterHtml ? 52 : 18
   );
 
   return {

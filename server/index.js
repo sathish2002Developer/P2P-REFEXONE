@@ -440,7 +440,8 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
       terms: finalTerms,
       annexureI: finalAnnexureI,
       tokenData: mergedTokenData,
-      afterAnnexureHtml: mappedPo.specialNotesHtml || ""
+      afterAnnexureHtml: mappedPo.specialNotesHtml || "",
+      footerReserveMm: mappedLetterhead?.margin_bottom_mm || margin_bottom_mm || 52
     });
 
     const pdfBuffer = await renderHtmlToPdfBuffer({
@@ -448,7 +449,8 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
       headerHtml: mappedLetterhead?.header_html || header_html,
       footerHtml: mappedLetterhead?.footer_html || footer_html,
       marginTopMm: mappedLetterhead?.margin_top_mm || margin_top_mm,
-      marginBottomMm: mappedLetterhead?.margin_bottom_mm || margin_bottom_mm
+      marginBottomMm: mappedLetterhead?.margin_bottom_mm || margin_bottom_mm,
+      footerHeightMm: mappedLetterhead?.footer_height_mm || 0
     });
 
     const finalTitle = title || mappedPo.title;
