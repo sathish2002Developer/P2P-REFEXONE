@@ -115,10 +115,8 @@ function buildPoStyles(_footerReserveMm = 50) {
     table.price,
     table.terms {
       width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      border-left: 1px solid #000;
-      border-top: 1px solid #000;
+      border-collapse: collapse;
+      border: none;
       page-break-inside: auto;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
@@ -127,21 +125,17 @@ function buildPoStyles(_footerReserveMm = 50) {
     table.price th,
     table.price td,
     table.terms th,
-    table.terms td,
-    table.price caption,
-    table.terms caption {
-      border-right: 1px solid #000;
-      border-bottom: 1px solid #000;
-      border-top: none;
-      border-left: none;
+    table.terms td {
+      border: 1px solid #000;
       box-decoration-break: clone;
       -webkit-box-decoration-break: clone;
     }
 
+    table.price caption,
     table.terms caption {
-      border-top: none;
-      border-left: none;
-      caption-side: top;
+      border: 1px solid #000;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
     }
 
     .desc-flow {
@@ -197,14 +191,11 @@ function buildPoStyles(_footerReserveMm = 50) {
       margin-bottom: 0;
     }
     table.price caption {
-      border: 1px solid #000;
       padding: 5px;
       font-weight: bold;
       text-align: center;
       background: #f2f2f2;
       caption-side: top;
-      box-decoration-break: clone;
-      -webkit-box-decoration-break: clone;
     }
     table.price th, table.price td {
       padding: 6px 8px;
@@ -249,12 +240,10 @@ function buildPoStyles(_footerReserveMm = 50) {
     table.terms caption {
       font-weight: bold;
       padding: 6px;
-      border: 1px solid #000;
       background: #f2f2f2;
+      caption-side: top;
       page-break-after: avoid;
       break-after: avoid;
-      box-decoration-break: clone;
-      -webkit-box-decoration-break: clone;
     }
     table.terms thead {
       display: table-header-group;
