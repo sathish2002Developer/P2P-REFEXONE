@@ -33,13 +33,27 @@ function wrapPlaywrightTemplate(innerHtml = "", slot = "body") {
     return content;
   }
 
-  const horizontalPadding = slot === "footer" ? "0" : "0 8mm";
+  const isFooter = slot === "footer";
+  const horizontalPadding = isFooter ? "0" : "0 8mm";
+  const overflowStyle = isFooter ? "visible" : "hidden";
 
   return `
-    <div data-playwright-template="${slot}" style="width:100%; margin:0; padding:${horizontalPadding}; box-sizing:border-box; font-size:10px; line-height:1.2; font-family:Arial,Helvetica,sans-serif; color:#1a1a1a; overflow:hidden; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
+    <div data-playwright-template="${slot}" style="width:100%; margin:0; padding:${horizontalPadding}; box-sizing:border-box; font-size:10px; line-height:1.2; font-family:Arial,Helvetica,sans-serif; color:#1a1a1a; overflow:${overflowStyle}; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
       ${content}
     </div>
   `;
+}
+
+function stripNonTemplateMarkup(html = "") {
+  return String(html || "")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<\/?(?:html|head|body|meta|link|title)\b[^>]*>/gi, "")
+    .trim();
+}
+
+function hasVisibleHtmlText(html = "") {
+  return String(html || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length > 0;
 }
 
 function sanitizeInlineStyle(style = "", { isFooter = false } = {}) {
@@ -74,16 +88,17 @@ function normalizeFooterLayout(html = "") {
 
   output = output.replace(/\sstyle=(["'])(.*?)\1/gi, (_match, quote, style) => {
     const sanitized = sanitizeInlineStyle(style, { isFooter: true });
-    return sanitized ? ` style=${quote}${sanitized}${quote}` : "";
+    const merged = [sanitized, "font-size:9px", "color:#333"].filter(Boolean).join("; ");
+    return ` style=${quote}${merged}${quote}`;
   });
 
   output = output.replace(/\salign=(["'])right\1/gi, ' align="center"');
 
-  return `
-    <div style="width:100%; max-width:100%; margin:0 auto; padding:0; text-align:center; box-sizing:border-box; overflow:hidden;">
-      ${output}
-    </div>
-  `;
+  return output;
+}
+
+function resolveFooterLogoMaxHeightPx(row = {}) {
+  return toFiniteNumber(row.Footer_Logo_Max_Height_px || row.Header_Logo_Max_Height_px, 42);
 }
 
 function buildLetterheadTokens(row = {}, tokenData = {}) {
@@ -97,16 +112,16 @@ function buildLetterheadTokens(row = {}, tokenData = {}) {
 
 function buildDefaultRefexFooterHtml() {
   return `
-    <div style="text-align:center; width:100%; font-family:Arial,Helvetica,sans-serif; color:#333;">
+    <div style="text-align:center; width:100%; font-family:Arial,Helvetica,sans-serif; color:#333; font-size:9px;">
       <div style="font-weight:bold; color:#2e3192; font-size:12px; line-height:1.3;">Refex Green Mobility Limited</div>
       <div style="font-size:9px; margin-bottom:4px;">(Wholly-Owned Subsidiary of Refex Industries Limited)</div>
-      <div style="height:2px; max-width:620px; margin:4px auto; background:linear-gradient(90deg,#2e3192,#27aae1,#39b54a,#f7941d);"></div>
-      <div style="display:inline-block; background:linear-gradient(90deg,#2e3192,#27aae1,#39b54a,#f7941d); color:#fff; padding:2px 12px; border-radius:12px; font-size:9px; font-weight:bold; margin:4px 0;">CIN:U74909TN2023PLC158849</div>
-      <div style="font-size:8.5px; line-height:1.35; margin-top:3px;">
+      <div style="height:2px; max-width:620px; margin:4px auto; background:#2e3192;"></div>
+      <div style="font-size:9px; font-weight:bold; margin:4px 0; color:#2e3192;">CIN:U74909TN2023PLC158849</div>
+      <div style="font-size:8.5px; line-height:1.35; margin-top:3px; color:#333;">
         <strong>Registered Office:</strong> 2<sup>nd</sup> Floor, No.313, Refex Towers, Sterling Road, Valluvar Kottam High Road, Nungambakkam, Chennai, Tamil Nadu 600 034<br>
         P: 044 - 3504 0050 | E: info@refex.co.in | W: www.refex.co.in
       </div>
-      <div style="text-align:center; font-size:9px; margin-top:6px;">
+      <div style="text-align:center; font-size:9px; margin-top:6px; color:#333;">
         <span class="pageNumber"></span>-<span class="totalPages"></span>
       </div>
     </div>
@@ -309,47 +324,84 @@ async function embedRemoteImagesAsDataUris(html = "", _options = {}) {
 }
 
 
-function normalizeFooterImages(html = "") {
+function normalizeFooterImages(html = "", maxHeightPx = 42) {
   return String(html || "").replace(/<img\b([^>]*)>/gi, (_match, attrs) => {
-    if (/\sstyle\s*=/i.test(attrs)) {
-      return `<img${attrs.replace(/\sstyle=(["'])(.*?)\1/i, (_styleMatch, quote, style) => {
-        const sanitized = sanitizeInlineStyle(style, { isFooter: true });
-        const merged = [sanitized, "display:block", "margin:0 auto", "max-width:100%", "height:auto"]
-          .filter(Boolean)
-          .join("; ")
-          .replace(/;\s*;/g, ";");
-        return ` style=${quote}${merged}${quote}`;
-      })}>`;
-    }
+    let nextAttrs = String(attrs || "")
+      .replace(/\sheight=(["'])[^"']*\1/gi, "")
+      .replace(/\sheight=\S+/gi, "")
+      .replace(/\swidth=(["'])[^"']*\1/gi, "")
+      .replace(/\swidth=\S+/gi, "");
 
-    return `<img${attrs} style="display:block; margin:0 auto; max-width:100%; height:auto;">`;
+    const imgStyle = mergeImgStyle(
+      (nextAttrs.match(/\sstyle=(["'])(.*?)\1/i) || [])[2] || "",
+      [
+        "display:block",
+        "margin:0 auto",
+        `max-height:${maxHeightPx}px`,
+        "max-width:100%",
+        "width:auto",
+        "height:auto"
+      ]
+    );
+
+    nextAttrs = nextAttrs.replace(/\sstyle=(["'])(.*?)\1/gi, "");
+    return `<img${nextAttrs} style="${imgStyle}">`;
   });
 }
 
-function normalizeFooterSize(html = "") {
-  if (!html) return "";
+function normalizeFooterSize(html = "", maxFooterImageHeightPx = 42) {
+  const sourceHtml = stripNonTemplateMarkup(String(html || "").trim());
+
+  if (!sourceHtml) {
+    return normalizeFooterSize(buildDefaultRefexFooterHtml(), maxFooterImageHeightPx);
+  }
 
   let sizedHtml = normalizeFooterLayout(
-    normalizeFooterImages(String(html))
+    normalizeFooterImages(sourceHtml, maxFooterImageHeightPx)
   )
     .replaceAll("{PAGENO}", '<span class="pageNumber"></span>')
     .replaceAll("{nb}", '<span class="totalPages"></span>')
     .replace(
       /<p[^>]*>\s*<span class=["']pageNumber["']><\/span>\s*[-–]\s*<span class=["']totalPages["']><\/span>\s*<\/p>/gi,
-      '<div style="text-align:center; font-size:11px; margin-top:8px; width:100%;"><span class="pageNumber"></span>-<span class="totalPages"></span></div>'
+      '<div style="text-align:center; font-size:9px; margin-top:6px; width:100%; color:#333;"><span class="pageNumber"></span>-<span class="totalPages"></span></div>'
     );
 
   const hasPageNumber = /class=["']pageNumber["']|class=["']totalPages["']|\{PAGENO\}|\{nb\}/i.test(sizedHtml);
   const pageNumberHtml = hasPageNumber
     ? ""
-    : `<div style="text-align:center; font-size:11px; margin-top:8px; width:100%;"><span class="pageNumber"></span>-<span class="totalPages"></span></div>`;
+    : `<div style="text-align:center; font-size:9px; margin-top:6px; width:100%; color:#333;"><span class="pageNumber"></span>-<span class="totalPages"></span></div>`;
 
   return wrapPlaywrightTemplate(`
-    <div style="width:100%; margin:0 auto; padding-top:5px; text-align:center; box-sizing:border-box; font-size:10px;">
+    <div style="width:100%; margin:0 auto; padding:0; text-align:center; box-sizing:border-box; font-size:9px; line-height:1.3; color:#333;">
       ${sizedHtml}
       ${pageNumberHtml}
     </div>
   `, "footer");
+}
+
+function ensureFooterTemplate(html = "", maxFooterImageHeightPx = 42) {
+  const content = String(html || "").trim();
+
+  if (content.includes("data-playwright-template")) {
+    const hasEmbeddedImage = /<img\b[^>]*\bsrc=(["'])data:/i.test(content);
+    const hasRemoteImage = /<img\b[^>]*\bsrc=(["'])https?:\/\//i.test(content);
+
+    if (hasVisibleHtmlText(content) || hasEmbeddedImage) {
+      return content;
+    }
+
+    if (hasRemoteImage) {
+      return normalizeFooterSize(buildDefaultRefexFooterHtml(), maxFooterImageHeightPx);
+    }
+
+    return normalizeFooterSize(buildDefaultRefexFooterHtml(), maxFooterImageHeightPx);
+  }
+
+  if (!content || (!hasVisibleHtmlText(content) && !/<img\b/i.test(content))) {
+    return normalizeFooterSize(buildDefaultRefexFooterHtml(), maxFooterImageHeightPx);
+  }
+
+  return normalizeFooterSize(content, maxFooterImageHeightPx);
 }
 
 function mapLetterhead(row = {}, baseUrl = "", logoSources = {}) {
@@ -358,6 +410,7 @@ function mapLetterhead(row = {}, baseUrl = "", logoSources = {}) {
   const configuredFooterHeight = Number(row.Footer_Height_mm || 0);
   const headerHeightMm = toFiniteNumber(row.Header_Height_mm, 18);
   const maxLogoHeightPx = resolveHeaderLogoMaxHeightPx(row);
+  const maxFooterImageHeightPx = resolveFooterLogoMaxHeightPx(row);
 
   const generatedHeaderHtml = buildHeaderHtmlFromLogoUrls(row, logoSources, maxLogoHeightPx);
   const fallbackHeaderHtml = normalizeHeaderHtml(
@@ -366,12 +419,17 @@ function mapLetterhead(row = {}, baseUrl = "", logoSources = {}) {
   );
   const rawHeaderHtml = generatedHeaderHtml || wrapPlaywrightTemplate(fallbackHeaderHtml || buildDefaultRefexTextLogoHtml(), "header");
 
-  const footerSourceHtml = normalizeHtmlAssetUrls(row.Footer_HTML || "", baseUrl) || buildDefaultRefexFooterHtml();
-  const normalizedFooterHtml = normalizeFooterSize(footerSourceHtml);
+  const footerSourceHtml = stripNonTemplateMarkup(
+    normalizeHtmlAssetUrls(row.Footer_HTML || "", baseUrl)
+  );
+  const footerBaseHtml = (hasVisibleHtmlText(footerSourceHtml) || /<img\b/i.test(footerSourceHtml))
+    ? footerSourceHtml
+    : buildDefaultRefexFooterHtml();
+  const normalizedFooterHtml = ensureFooterTemplate(footerBaseHtml, maxFooterImageHeightPx);
 
   const estimatedFooterHeightMm = configuredFooterHeight > 0
     ? configuredFooterHeight
-    : estimateFooterHeightMm(footerSourceHtml);
+    : estimateFooterHeightMm(footerBaseHtml);
 
   const estimatedHeaderHeightMm = estimateHeaderHeightMm(rawHeaderHtml, headerHeightMm, maxLogoHeightPx);
 
@@ -383,8 +441,8 @@ function mapLetterhead(row = {}, baseUrl = "", logoSources = {}) {
 
   const safeMarginBottom = Math.max(
     Number.isFinite(configuredMarginBottom) && configuredMarginBottom > 0 ? configuredMarginBottom : 0,
-    estimatedFooterHeightMm + 18,
-    normalizedFooterHtml ? 52 : 18
+    estimatedFooterHeightMm + 20,
+    normalizedFooterHtml ? 55 : 20
   );
 
   return {
@@ -420,13 +478,15 @@ async function mapLetterheadForPdf(row = {}, baseUrl = "", tokenData = {}) {
 
   const mapped = mapLetterhead(row, baseUrl, logoSources);
   const letterheadTokens = buildLetterheadTokens(row, tokenData);
+  const maxFooterImageHeightPx = resolveFooterLogoMaxHeightPx(row);
   const headerWithTokens = renderTemplate(mapped.header_html, letterheadTokens, { missingTokenMode: "keep" });
   const footerWithTokens = renderTemplate(mapped.footer_html, letterheadTokens, { missingTokenMode: "keep" });
+  const footerWithEmbeddedImages = await embedRemoteImagesAsDataUris(footerWithTokens);
 
   return {
     ...mapped,
     header_html: await embedRemoteImagesAsDataUris(headerWithTokens),
-    footer_html: await embedRemoteImagesAsDataUris(footerWithTokens)
+    footer_html: ensureFooterTemplate(footerWithEmbeddedImages, maxFooterImageHeightPx)
   };
 }
 
@@ -434,6 +494,10 @@ module.exports = {
   normalizeHtmlAssetUrls,
   normalizeFooterSize,
   normalizeFooterLayout,
+  stripNonTemplateMarkup,
+  hasVisibleHtmlText,
+  resolveFooterLogoMaxHeightPx,
+  ensureFooterTemplate,
   normalizeHeaderHtml,
   normalizeHeaderImages,
   sanitizeInlineStyle,

@@ -26,6 +26,7 @@ function buildAttachmentDownloadUrls({
   baseUrl = "",
   accountId = "",
   dataformId = "",
+  processId = "",
   instanceId = "",
   attachmentId = "",
   filename = "",
@@ -36,6 +37,20 @@ function buildAttachmentDownloadUrls({
 
   if (key) {
     urls.push(`${cleanBase}/attachment/2/${accountId}/${encodeURIComponent(key)}`);
+  }
+
+  if (attachmentId && processId && instanceId) {
+    if (filename) {
+      urls.push(
+        `${cleanBase}/process/2/${accountId}/${processId}/${instanceId}/attachment/${attachmentId}/${encodeURIComponent(filename)}`,
+        `${cleanBase}/process/2/${accountId}/admin/${processId}/${instanceId}/attachment/${attachmentId}/${encodeURIComponent(filename)}`
+      );
+    }
+
+    urls.push(
+      `${cleanBase}/process/2/${accountId}/${processId}/${instanceId}/attachment/${attachmentId}`,
+      `${cleanBase}/process/2/${accountId}/admin/${processId}/${instanceId}/attachment/${attachmentId}`
+    );
   }
 
   if (attachmentId && dataformId && instanceId) {
@@ -131,12 +146,14 @@ async function fetchKissflowAttachmentAsDataUri(image = {}, context = {}) {
   const baseUrl = String(context.baseUrl || config.kissflow.baseUrl || "").replace(/\/+$/, "");
   const accountId = context.accountId || config.kissflow.accountId;
   const dataformId = context.dataformId || "";
+  const processId = context.processId || "";
   const instanceId = context.instanceId || context.rowId || "";
   const key = primaryAttachmentKey(image, dataformId);
   const urls = buildAttachmentDownloadUrls({
     baseUrl,
     accountId,
     dataformId,
+    processId,
     instanceId,
     attachmentId: image.id,
     filename: image.name,
@@ -153,6 +170,32 @@ async function fetchKissflowAttachmentAsDataUri(image = {}, context = {}) {
   }
 
   return "";
+}
+
+async function resolveAnnexure1ImageRows(rows = [], context = {}) {
+  const resolved = [];
+
+  for (const row of rows) {
+    if (row.row_type !== "image") {
+      resolved.push(row);
+      continue;
+    }
+
+    const dataUri = await fetchKissflowAttachmentAsDataUri(row.image_attachment, {
+      baseUrl: context.baseUrl,
+      processId: context.processId,
+      instanceId: context.instanceId,
+      rowId: row.source_row_id || ""
+    });
+
+    resolved.push({
+      ...row,
+      image_data_uri: dataUri,
+      image_loaded: Boolean(dataUri)
+    });
+  }
+
+  return resolved;
 }
 
 async function resolveLetterheadLogoSources(row = {}, context = {}) {
@@ -215,6 +258,7 @@ module.exports = {
   buildAttachmentDownloadUrls,
   buildKissflowAuthHeaders,
   fetchKissflowAttachmentAsDataUri,
+  resolveAnnexure1ImageRows,
   resolveLetterheadLogoSources,
   isKissflowHostUrl,
   isRateLimited,

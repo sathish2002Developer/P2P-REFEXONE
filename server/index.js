@@ -8,9 +8,9 @@ const { getAccountProbe, kfRequest } = require("./src/kissflowClient");
 const { probeMasterDataforms, getDataformItem, findCompanyLetterhead, findCompanyLetterheadByCode, findAnnexureMasterByPoType } = require("./src/kissflowDataforms");
 const { mapAnnexureMaster } = require("./src/annexureMapper");
 const { getPurchaseOrderInstance, updatePurchaseOrderInstance } = require("./src/kissflowProcesses");
-const { buildPurchaseOrderBodyHtml, mapProcessTermsRows, mapProcessAnnexureRows } = require("./src/poMapper");
+const { buildPurchaseOrderBodyHtml, mapProcessTermsRows, mapProcessAnnexureRows, mapProcessAnnexure1Rows } = require("./src/poMapper");
 const { mapLetterhead, mapLetterheadForPdf } = require("./src/letterheadMapper");
-
+const { resolveAnnexure1ImageRows } = require("./src/kissflowImageFetch");
 
 function formatRunTimestampForFilename(date = new Date()) {
   const pad = (value) => String(value).padStart(2, "0");
@@ -433,15 +433,29 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
       1
     );
 
+    const processAnnexure1Rows = mapProcessAnnexure1Rows(
+      poResult.data,
+      1
+    );
+
+    const resolvedAnnexure1Rows = await resolveAnnexure1ImageRows(processAnnexure1Rows, {
+      baseUrl: config.kissflow.baseUrl,
+      processId: config.kissflowModels.purchaseOrderProcessId,
+      instanceId: instance_id
+    });
+
     // New source-of-truth rule:
     // Populate Terms & Annexure copies master rows into the PO child tables.
     // Generate PO must use the edited PO child-table rows only, not append master rows again.
     const finalTerms = processTerms;
     const finalAnnexureI = processAnnexureI;
+    const finalAnnexure1Rows = resolvedAnnexure1Rows;
+    const annexure1ImageCount = finalAnnexure1Rows.filter((row) => row.row_type === "image").length;
+    const annexure1ImagesLoaded = finalAnnexure1Rows.filter((row) => row.row_type === "image" && row.image_loaded).length;
 
-    if (!finalTerms.length && !finalAnnexureI.length) {
+    if (!finalTerms.length && !finalAnnexureI.length && !annexure1ImageCount) {
       throw new Error(
-        "Terms & Annexure are empty. Please click Populate Terms & Annexure first, review the rows, then generate the PO."
+        "Terms, Annexure, and Annexure-1 images are empty. Please click Populate Terms & Annexure first, review the rows, then generate the PO."
       );
     }
 
@@ -450,6 +464,7 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
       bodyHtml: body_html || mappedPo.bodyHtml,
       terms: finalTerms,
       annexureI: finalAnnexureI,
+      annexure1Rows: finalAnnexure1Rows,
       tokenData: mergedTokenData,
       afterAnnexureHtml: mappedPo.specialNotesHtml || "",
       footerReserveMm: mappedLetterhead?.margin_bottom_mm || margin_bottom_mm || 52
@@ -575,6 +590,12 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
         master_annexure_i_count: mappedMaster.annexure_i.length,
         process_annexure_i_count: processAnnexureI.length,
         final_annexure_i_count: finalAnnexureI.length
+      },
+      annexure_1: {
+        process_rows_count: processAnnexure1Rows.length,
+        image_rows_count: annexure1ImageCount,
+        images_loaded_count: annexure1ImagesLoaded,
+        images_rendered: annexure1ImagesLoaded > 0
       },
       gcs_object_field_updated: gcsObjectFieldUpdated,
       bytes: pdfBuffer.length,

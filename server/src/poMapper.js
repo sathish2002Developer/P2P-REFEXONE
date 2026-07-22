@@ -402,6 +402,7 @@ function mapProcessAnnexureRows(po = {}, startSequenceNo = 1) {
 
   return rows
     .map((row, index) => ({
+      row_type: "text",
       sequence_no: startSequenceNo + index,
       header: row.Term_Header_1 || "",
       terms_and_conditions: row.Term_Description_1 || "",
@@ -413,6 +414,53 @@ function mapProcessAnnexureRows(po = {}, startSequenceNo = 1) {
     .filter((row) => row.header || row.terms_and_conditions);
 }
 
+function normalizeAnnexure1RowType(row = {}) {
+  const type = String(row.Type || row.type || "Text").trim().toLowerCase();
+  return type === "image" ? "image" : "text";
+}
+
+function mapProcessAnnexure1Rows(po = {}, startSequenceNo = 1) {
+  const rows = po["Table::ANNEXURE_1"] || [];
+
+  return rows
+    .map((row, index) => {
+      const rowType = normalizeAnnexure1RowType(row);
+
+      if (rowType === "image") {
+        const imageAttachment = row.Image_1 || row.Image || null;
+
+        return {
+          row_type: "image",
+          sequence_no: startSequenceNo + index,
+          page_hint: String(row.page || row.Page || "").trim(),
+          image_attachment: imageAttachment,
+          image_name: imageAttachment?.name || "",
+          image_data_uri: "",
+          image_loaded: false,
+          source_row_id: row._id || null,
+          source: "purchase_order_process_annexure_1"
+        };
+      }
+
+      return {
+        row_type: "text",
+        sequence_no: startSequenceNo + index,
+        header: row.Term_Header_1 || row.Header || row.Header_1 || "",
+        terms_and_conditions: row.Term_Description_1 || row.Description || row.Description_1 || "",
+        page_hint: String(row.page || row.Page || "").trim(),
+        source_row_id: row._id || null,
+        source: "purchase_order_process_annexure_1"
+      };
+    })
+    .filter((row) => {
+      if (row.row_type === "image") {
+        return Boolean(row.image_attachment?.key || row.image_attachment?.id);
+      }
+
+      return row.header || row.terms_and_conditions;
+    });
+}
+
 module.exports = {
   valueAt,
   cleanCurrency,
@@ -421,6 +469,7 @@ module.exports = {
   mapLineItems,
   mapProcessTermsRows,
   mapProcessAnnexureRows,
+  mapProcessAnnexure1Rows,
   buildPriceScheduleHtml,
   buildSpecialNotesHtml,
   buildPurchaseOrderBodyHtml

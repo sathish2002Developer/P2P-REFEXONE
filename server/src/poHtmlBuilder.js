@@ -67,6 +67,54 @@ function buildTermsTable(rows = [], data = {}) {
   `;
 }
 
+function buildAnnexure1TextTable(rows = [], data = {}) {
+  const textRows = sortedRows(rows.filter((row) => row.row_type !== "image"));
+  if (!textRows.length) return "";
+
+  return `
+    <section class="annexure-section annexure-extra-section">
+      <h2 class="annexure-title">ANNEXURE-I (CONT.)</h2>
+      <table class="terms annexure-table">
+        <thead>${annexureHeadRow}</thead>
+        <tbody>
+          ${renderAnnexureRows(textRows, data)}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+function buildAnnexure1ImagePages(rows = []) {
+  const imageRows = sortedRows(rows.filter((row) => row.row_type === "image" && row.image_data_uri));
+
+  if (!imageRows.length) return "";
+
+  return imageRows.map((row, index) => {
+    const alt = escapeHtml(row.image_name || `Annexure image ${row.sequence_no || index + 1}`);
+
+    return `
+      <section class="annexure-image-section">
+        <img src="${row.image_data_uri}" alt="${alt}" class="annexure-full-image" />
+      </section>
+    `;
+  }).join("");
+}
+
+function buildAnnexure1MissingImagesNotice(rows = []) {
+  const missing = sortedRows(rows.filter((row) => row.row_type === "image" && !row.image_data_uri));
+  if (!missing.length) return "";
+
+  const names = missing
+    .map((row) => escapeHtml(row.image_name || row.source_row_id || "Unknown image"))
+    .join(", ");
+
+  return `
+    <section class="annexure-image-section">
+      <div class="annexure-image-missing">Unable to load annexure image(s): ${names}</div>
+    </section>
+  `;
+}
+
 function buildAnnexureITable(rows = [], data = {}) {
   const sorted = sortedRows(rows);
   if (!sorted.length) return "";
@@ -107,6 +155,7 @@ function buildPoStyles(_footerReserveMm = 50) {
     .po-body,
     .terms-section,
     .annexure-section,
+    .annexure-image-section,
     .special-notes-section,
     .vendor-ack-section {
       padding-bottom: 2mm;
@@ -237,11 +286,39 @@ function buildPoStyles(_footerReserveMm = 50) {
 
     .terms-section,
     .annexure-section,
+    .annexure-image-section,
     .special-notes-section,
     .vendor-ack-section {
       page-break-before: always;
       break-before: page;
       margin-top: 0;
+    }
+
+    .annexure-image-section {
+      page-break-inside: avoid;
+      break-inside: avoid;
+      padding: 0;
+      text-align: center;
+    }
+
+    .annexure-full-image {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      max-height: 210mm;
+      margin: 0 auto;
+      object-fit: contain;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .annexure-image-missing {
+      border: 1px solid #000;
+      padding: 12px;
+      font-size: 12px;
+      text-align: center;
+      color: #333;
     }
 
     table.terms {
@@ -323,6 +400,7 @@ function buildPoHtml({
   bodyHtml = "",
   terms = [],
   annexureI = [],
+  annexure1Rows = [],
   tokenData = {},
   afterAnnexureHtml = "",
   footerReserveMm = 50
@@ -344,6 +422,9 @@ function buildPoHtml({
   </section>
   ${buildTermsTable(terms, tokenData)}
   ${buildAnnexureITable(annexureI, tokenData)}
+  ${buildAnnexure1TextTable(annexure1Rows, tokenData)}
+  ${buildAnnexure1ImagePages(annexure1Rows)}
+  ${buildAnnexure1MissingImagesNotice(annexure1Rows)}
   ${afterAnnexureHtml || ""}
 </body>
 </html>
@@ -353,5 +434,6 @@ function buildPoHtml({
 module.exports = {
   buildPoHtml,
   buildTermsTable,
-  buildAnnexureITable
+  buildAnnexureITable,
+  buildAnnexure1ImagePages
 };

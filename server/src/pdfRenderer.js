@@ -1,5 +1,5 @@
 const { chromium } = require("playwright");
-const { wrapPlaywrightTemplate } = require("./letterheadMapper");
+const { wrapPlaywrightTemplate, ensureFooterTemplate } = require("./letterheadMapper");
 
 function prepareTemplateHtml(html = "", slot = "body") {
   const content = String(html || "").trim();
@@ -27,11 +27,12 @@ async function renderHtmlToPdfBuffer({
     throw new Error("renderHtmlToPdfBuffer requires non-empty html");
   }
 
-  const hasFooter = Boolean(String(footerHtml || "").trim());
+  const resolvedFooterHtml = ensureFooterTemplate(footerHtml);
+  const hasFooter = Boolean(String(resolvedFooterHtml || "").trim());
   const hasHeader = Boolean(String(headerHtml || "").trim());
   const hasHeaderFooter = hasHeader || hasFooter;
 
-  const estimatedFooterReserve = footerHeightMm > 0 ? footerHeightMm + 18 : 0;
+  const estimatedFooterReserve = footerHeightMm > 0 ? footerHeightMm + 20 : 0;
   const estimatedHeaderReserve = headerHeightMm > 0 ? headerHeightMm + 14 : 0;
   const safeMarginTop = Math.max(
     Number(marginTopMm) || 20,
@@ -41,7 +42,7 @@ async function renderHtmlToPdfBuffer({
   const safeMarginBottom = Math.max(
     Number(marginBottomMm) || 25,
     estimatedFooterReserve,
-    hasFooter ? 52 : 18
+    hasFooter ? 55 : 20
   );
 
   const browser = await chromium.launch({
@@ -58,7 +59,7 @@ async function renderHtmlToPdfBuffer({
       printBackground: true,
       displayHeaderFooter: hasHeaderFooter,
       headerTemplate: prepareTemplateHtml(headerHtml, "header"),
-      footerTemplate: prepareTemplateHtml(footerHtml, "footer"),
+      footerTemplate: prepareTemplateHtml(resolvedFooterHtml, "footer"),
       margin: {
         top: `${safeMarginTop}mm`,
         right: "12mm",
