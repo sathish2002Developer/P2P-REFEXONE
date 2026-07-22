@@ -8,8 +8,8 @@ function renderSingleAnnexureRow(row, data = {}) {
   return `
     <tr>
       <td class="sno-col">${escapeHtml(row.sequence_no || "")}</td>
-      <td><strong>${header}</strong></td>
-      <td class="desc-col">${description}</td>
+      <td class="header-col"><strong>${header}</strong></td>
+      <td class="desc-col"><div class="desc-flow">${description}</div></td>
     </tr>
   `;
 }
@@ -22,7 +22,7 @@ function renderSingleTermsRow(row, data = {}) {
   return `
     <tr>
       <th class="head-col">${header}</th>
-      <td class="desc-col">${description}</td>
+      <td class="desc-col"><div class="desc-flow">${description}</div></td>
     </tr>
   `;
 }
@@ -115,7 +115,10 @@ function buildPoStyles(_footerReserveMm = 50) {
     table.price,
     table.terms {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
+      border-left: 1px solid #000;
+      border-top: 1px solid #000;
       page-break-inside: auto;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
@@ -127,14 +130,43 @@ function buildPoStyles(_footerReserveMm = 50) {
     table.terms td,
     table.price caption,
     table.terms caption {
-      border: 1px solid #000;
+      border-right: 1px solid #000;
+      border-bottom: 1px solid #000;
+      border-top: none;
+      border-left: none;
       box-decoration-break: clone;
       -webkit-box-decoration-break: clone;
     }
 
-    table.terms td.desc-col {
+    table.terms caption {
+      border-top: none;
+      border-left: none;
+      caption-side: top;
+    }
+
+    .desc-flow {
       page-break-inside: auto;
       break-inside: auto;
+    }
+
+    table.terms tbody tr,
+    table.annexure-table tbody tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    table.annexure-table tbody tr td.desc-col,
+    table.terms tbody tr td.desc-col {
+      page-break-inside: auto;
+      break-inside: auto;
+    }
+
+    table.annexure-table tbody tr td.sno-col,
+    table.annexure-table tbody tr td.header-col,
+    table.terms tbody tr th.head-col {
+      page-break-inside: avoid;
+      break-inside: avoid;
+      vertical-align: top;
     }
 
     .title {
@@ -234,16 +266,11 @@ function buildPoStyles(_footerReserveMm = 50) {
       padding: 7px 9px;
       vertical-align: top;
       text-align: left;
-      page-break-inside: auto;
-      break-inside: auto;
     }
     table.terms th { background: #f2f2f2; }
     table.terms td.head-col, table.terms th.head-col { width: 15%; font-weight: bold; }
     table.terms td.sno-col, table.terms th.sno-col { width: 6%; text-align: center; }
-    table.terms tbody tr {
-      page-break-inside: auto;
-      break-inside: auto;
-    }
+    table.annexure-table td.header-col { width: 14%; font-weight: bold; vertical-align: top; }
     table.annexure-table td:last-child,
     table.terms td:last-child {
       word-break: break-word;
