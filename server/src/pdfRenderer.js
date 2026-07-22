@@ -13,6 +13,13 @@ async function renderHtmlToPdfBuffer({ html, headerHtml = "", footerHtml = "", m
     throw new Error("renderHtmlToPdfBuffer requires non-empty html");
   }
 
+  const hasFooter = Boolean(String(footerHtml || "").trim());
+  const hasHeader = Boolean(String(headerHtml || "").trim());
+  const hasHeaderFooter = hasHeader || hasFooter;
+
+  const safeMarginTop = Math.max(Number(marginTopMm) || 20, hasHeader ? 22 : 15);
+  const safeMarginBottom = Math.max(Number(marginBottomMm) || 25, hasFooter ? 42 : 18);
+
   const browser = await chromium.launch({
     headless: true,
     args: ["--no-sandbox", "--disable-setuid-sandbox"]
@@ -22,8 +29,6 @@ async function renderHtmlToPdfBuffer({ html, headerHtml = "", footerHtml = "", m
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle" });
 
-    const hasHeaderFooter = Boolean(String(headerHtml || "").trim() || String(footerHtml || "").trim());
-
     const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,
@@ -31,9 +36,9 @@ async function renderHtmlToPdfBuffer({ html, headerHtml = "", footerHtml = "", m
       headerTemplate: prepareTemplateHtml(headerHtml, "header"),
       footerTemplate: prepareTemplateHtml(footerHtml, "footer"),
       margin: {
-        top: `${marginTopMm}mm`,
+        top: `${safeMarginTop}mm`,
         right: "12mm",
-        bottom: `${marginBottomMm}mm`,
+        bottom: `${safeMarginBottom}mm`,
         left: "12mm"
       }
     });

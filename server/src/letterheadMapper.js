@@ -53,6 +53,47 @@ function buildLetterheadTokens(row = {}, tokenData = {}) {
   };
 }
 
+function buildDefaultRefexFooterHtml() {
+  return `
+    <div style="text-align:center; width:100%; font-family:Arial,Helvetica,sans-serif; color:#333;">
+      <div style="font-weight:bold; color:#2e3192; font-size:12px; line-height:1.3;">Refex Green Mobility Limited</div>
+      <div style="font-size:9px; margin-bottom:4px;">(Wholly-Owned Subsidiary of Refex Industries Limited)</div>
+      <div style="height:2px; max-width:620px; margin:4px auto; background:linear-gradient(90deg,#2e3192,#27aae1,#39b54a,#f7941d);"></div>
+      <div style="display:inline-block; background:linear-gradient(90deg,#2e3192,#27aae1,#39b54a,#f7941d); color:#fff; padding:2px 12px; border-radius:12px; font-size:9px; font-weight:bold; margin:4px 0;">CIN:U74909TN2023PLC158849</div>
+      <div style="font-size:8.5px; line-height:1.35; margin-top:3px;">
+        <strong>Registered Office:</strong> 2<sup>nd</sup> Floor, No.313, Refex Towers, Sterling Road, Valluvar Kottam High Road, Nungambakkam, Chennai, Tamil Nadu 600 034<br>
+        P: 044 - 3504 0050 | E: info@refex.co.in | W: www.refex.co.in
+      </div>
+      <div style="text-align:center; font-size:9px; margin-top:6px;">
+        <span class="pageNumber"></span>-<span class="totalPages"></span>
+      </div>
+    </div>
+  `;
+}
+
+function estimateFooterHeightMm(html = "") {
+  const content = String(html || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  if (!content) return 0;
+
+  let estimate = 34;
+  const lineBreaks = (String(html).match(/<br\b|<\/p>|<\/div>/gi) || []).length;
+  estimate += lineBreaks * 2.8;
+
+  if (/<img\b/i.test(html)) {
+    estimate += 12;
+  }
+
+  return Math.min(Math.max(estimate, 36), 52);
+}
+
+function estimateHeaderHeightMm(html = "", configuredHeightMm = 18) {
+  const content = String(html || "").trim();
+  if (!content) return configuredHeightMm;
+  if (/<img\b/i.test(content)) {
+    return Math.max(configuredHeightMm, 20);
+  }
+  return Math.max(configuredHeightMm, 16);
+}
 function buildDefaultRefexTextLogoHtml() {
   return `
     <div style="display:flex; justify-content:flex-end; width:100%; margin-bottom:4px;">
@@ -172,10 +213,10 @@ function normalizeFooterSize(html = "") {
         style="
           display:block;
           margin:0 auto;
-          width:700px;
+          width:100%;
           height:auto;
-          max-width:700px;
-          max-height:180px;
+          max-width:100%;
+          max-height:48px;
           object-fit:contain;
         ">`;
     });
@@ -195,21 +236,32 @@ function normalizeFooterSize(html = "") {
 
 function mapLetterhead(row = {}, baseUrl = "") {
   const configuredMarginTop = Number(row.Margin_Top_mm || 20);
-  const marginBottom = Number(row.Margin_Bottom_mm || 25);
+  const configuredMarginBottom = Number(row.Margin_Bottom_mm || 0);
+  const configuredFooterHeight = Number(row.Footer_Height_mm || 0);
   const headerHeightMm = toFiniteNumber(row.Header_Height_mm, 18);
-
-  // Prevent page body from colliding with Playwright header template.
-  // Header_Height_mm is the primary admin-controlled setting.
-  const safeMarginTop = Math.max(
-    Number.isFinite(configuredMarginTop) ? configuredMarginTop : 20,
-    headerHeightMm + 8
-  );
 
   const generatedHeaderHtml = buildHeaderHtmlFromLogoUrls(row);
   const fallbackHeaderHtml = normalizeHtmlAssetUrls(row.Header_HTML || "", baseUrl);
   const rawHeaderHtml = generatedHeaderHtml || wrapPlaywrightTemplate(fallbackHeaderHtml || buildDefaultRefexTextLogoHtml(), "header");
-  const normalizedFooterHtml = normalizeFooterSize(
-    normalizeHtmlAssetUrls(row.Footer_HTML || "", baseUrl)
+
+  const footerSourceHtml = normalizeHtmlAssetUrls(row.Footer_HTML || "", baseUrl) || buildDefaultRefexFooterHtml();
+  const normalizedFooterHtml = normalizeFooterSize(footerSourceHtml);
+
+  const estimatedFooterHeightMm = configuredFooterHeight > 0
+    ? configuredFooterHeight
+    : estimateFooterHeightMm(footerSourceHtml);
+
+  const estimatedHeaderHeightMm = estimateHeaderHeightMm(rawHeaderHtml, headerHeightMm);
+
+  const safeMarginTop = Math.max(
+    Number.isFinite(configuredMarginTop) && configuredMarginTop > 0 ? configuredMarginTop : 22,
+    estimatedHeaderHeightMm + 10
+  );
+
+  const safeMarginBottom = Math.max(
+    Number.isFinite(configuredMarginBottom) && configuredMarginBottom > 0 ? configuredMarginBottom : 0,
+    estimatedFooterHeightMm + 10,
+    normalizedFooterHtml ? 42 : 18
   );
 
   return {
@@ -220,8 +272,9 @@ function mapLetterhead(row = {}, baseUrl = "") {
     footer_html: normalizedFooterHtml,
     page_size: row.Page_Size || "A4",
     margin_top_mm: safeMarginTop,
-    margin_bottom_mm: Number.isFinite(marginBottom) ? marginBottom : 25,
-    header_height_mm: headerHeightMm,
+    margin_bottom_mm: safeMarginBottom,
+    header_height_mm: estimatedHeaderHeightMm,
+    footer_height_mm: estimatedFooterHeightMm,
     header_logo_max_height_px: toFiniteNumber(row.Header_Logo_Max_Height_px, 45),
     header_left_logo_url_set: Boolean(cleanUrl(row.Header_Left_Logo_URL)),
     header_right_logo_url_set: Boolean(cleanUrl(row.Header_Right_Logo_URL)),
@@ -250,6 +303,9 @@ module.exports = {
   wrapPlaywrightTemplate,
   buildLetterheadTokens,
   buildDefaultRefexTextLogoHtml,
+  buildDefaultRefexFooterHtml,
+  estimateFooterHeightMm,
+  estimateHeaderHeightMm,
   cleanUrl,
   buildHeaderHtmlFromLogoUrls,
   embedRemoteImagesAsDataUris,

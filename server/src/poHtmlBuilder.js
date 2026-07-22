@@ -59,13 +59,17 @@ function buildAnnexureITable(rows = [], data = {}) {
     <section class="annexure-section">
       <h2 class="annexure-title">ANNEXURE-I</h2>
       <h3 class="annexure-sub">COMMERCIAL TERMS AND CONDITIONS</h3>
-      <table class="terms">
-        <tr>
-          <th class="sno-col">S.NO.</th>
-          <th style="width:14%">HEADERS</th>
-          <th>TERMS AND CONDITIONS</th>
-        </tr>
-        ${renderAnnexureRows(rows, data)}
+      <table class="terms annexure-table">
+        <thead>
+          <tr>
+            <th class="sno-col">S.NO.</th>
+            <th style="width:14%">HEADERS</th>
+            <th>TERMS AND CONDITIONS</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${renderAnnexureRows(rows, data)}
+        </tbody>
       </table>
     </section>
   `;
@@ -73,14 +77,18 @@ function buildAnnexureITable(rows = [], data = {}) {
 
 function buildPoStyles() {
   return `
-    @page { size: A4; margin: 18mm 15mm; }
+    @page {
+      size: A4;
+      margin: 18mm 15mm 45mm 15mm;
+    }
     * { box-sizing: border-box; }
     body {
       font-family: Arial, Helvetica, sans-serif;
       font-size: 12.5px;
       color: #1a1a1a;
-      max-width: 850px;
-      margin: 0 auto;
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
       padding: 0;
       line-height: 1.4;
     }
@@ -135,6 +143,7 @@ function buildPoStyles() {
     table.price tr.total td { font-weight: bold; }
     table.price .spec-block p { margin: 6px 0; }
     table.price .spec-title { font-weight: bold; text-decoration: underline; margin-top: 10px; }
+    table.price tbody tr { page-break-inside: avoid; break-inside: avoid; }
 
     .amount-words {
       border: 1px solid #000;
@@ -144,19 +153,18 @@ function buildPoStyles() {
       justify-content: space-between;
       font-size: 12.5px;
       margin-bottom: 16px;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .amount-words .label { font-weight: bold; white-space: nowrap; margin-right: 10px; }
     .amount-words .value { font-weight: bold; text-align: right; }
 
-    .terms-section {
+    .terms-section,
+    .annexure-section,
+    .special-notes-section {
       page-break-before: always;
       break-before: page;
       margin-top: 0;
-    }
-
-    .annexure-section {
-      page-break-before: always;
-      break-before: page;
     }
 
     table.terms {
@@ -171,32 +179,53 @@ function buildPoStyles() {
       border: 1px solid #000;
       border-bottom: none;
       background: #f2f2f2;
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+    table.terms thead {
+      display: table-header-group;
+    }
+    table.terms tbody {
+      display: table-row-group;
     }
     table.terms th, table.terms td {
       border: 1px solid #000;
       padding: 7px 9px;
       vertical-align: top;
       text-align: left;
+      page-break-inside: auto;
+      break-inside: auto;
     }
     table.terms th { background: #f2f2f2; }
     table.terms td.head-col, table.terms th.head-col { width: 15%; font-weight: bold; }
     table.terms td.sno-col, table.terms th.sno-col { width: 6%; text-align: center; }
+    table.terms tr {
+      page-break-inside: auto;
+      break-inside: auto;
+    }
+    table.annexure-table tbody tr {
+      page-break-inside: auto;
+      break-inside: auto;
+    }
+    table.annexure-table td:last-child,
+    table.terms td:last-child {
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
 
     h2.annexure-title {
       text-align: center;
       margin: 0 0 4px 0;
       font-size: 15px;
+      page-break-after: avoid;
+      break-after: avoid;
     }
     h3.annexure-sub {
       text-align: center;
       margin: 0 0 14px 0;
       font-size: 13px;
-    }
-
-    .special-notes-section {
-      page-break-before: always;
-      break-before: page;
-      margin-top: 0;
+      page-break-after: avoid;
+      break-after: avoid;
     }
 
     .special-notes {
@@ -204,6 +233,7 @@ function buildPoStyles() {
       padding: 12px 16px;
       margin-top: 0;
       page-break-inside: avoid;
+      break-inside: avoid;
     }
     .special-notes p { margin: 6px 0; }
     .special-notes .lbl { font-weight: bold; }
@@ -215,12 +245,13 @@ function buildPoStyles() {
       padding: 12px 16px;
       margin-top: 16px;
       page-break-inside: avoid;
+      break-inside: avoid;
     }
     .ack-box .sig-gap { height: 70px; }
 
-    .po-body { margin-bottom: 16px; }
-
-    tr { page-break-inside: avoid; }
+    .po-body {
+      margin-bottom: 16px;
+    }
   `;
 }
 
