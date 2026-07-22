@@ -33,10 +33,10 @@ function wrapPlaywrightTemplate(innerHtml = "", slot = "body") {
     return content;
   }
 
-  const horizontalPadding = slot === "footer" ? "0" : "0 10mm";
+  const horizontalPadding = slot === "footer" ? "0" : "0 8mm";
 
   return `
-    <div data-playwright-template="${slot}" style="width:100%; margin:0; padding:${horizontalPadding}; box-sizing:border-box; font-size:10px; line-height:1.35; font-family:Arial,Helvetica,sans-serif; color:#1a1a1a; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
+    <div data-playwright-template="${slot}" style="width:100%; margin:0; padding:${horizontalPadding}; box-sizing:border-box; font-size:10px; line-height:1.2; font-family:Arial,Helvetica,sans-serif; color:#1a1a1a; overflow:hidden; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
       ${content}
     </div>
   `;
@@ -139,48 +139,91 @@ function estimateFooterHeightMm(html = "") {
   return Math.min(Math.max(estimate, 45), 68);
 }
 
-function estimateHeaderHeightMm(html = "", configuredHeightMm = 18) {
+function estimateHeaderHeightMm(html = "", configuredHeightMm = 18, maxLogoHeightPx = 50) {
   const content = String(html || "").trim();
-  if (!content) return configuredHeightMm;
+  const logoHeightMm = pxToMm(maxLogoHeightPx);
 
-  let estimate = configuredHeightMm;
+  let estimate = Math.max(
+    configuredHeightMm,
+    logoHeightMm + 4,
+    /<img\b/i.test(content) ? logoHeightMm + 6 : 0
+  );
+
+  if (!content) {
+    return Math.max(configuredHeightMm, logoHeightMm + 4);
+  }
+
   const heightMatch = content.match(/<img\b[^>]*\sheight=["']?(\d+)/i);
   const styleHeightMatch = content.match(/max-height\s*:\s*(\d+(?:\.\d+)?)px/i);
 
   if (heightMatch) {
-    estimate = Math.max(estimate, Math.round(Number(heightMatch[1]) * 0.28) + 6);
+    estimate = Math.max(estimate, pxToMm(Number(heightMatch[1])) + 6);
   } else if (styleHeightMatch) {
-    estimate = Math.max(estimate, Math.round(Number(styleHeightMatch[1]) * 0.28) + 6);
-  } else if (/<img\b/i.test(content)) {
-    estimate = Math.max(estimate, 24);
+    estimate = Math.max(estimate, pxToMm(Number(styleHeightMatch[1])) + 6);
   }
 
-  return estimate;
+  return Math.max(estimate, 16);
 }
 
-function normalizeHeaderImages(html = "") {
-  return String(html || "").replace(/<img\b([^>]*)>/gi, (_match, attrs) => {
-    if (/\sstyle\s*=/i.test(attrs)) {
-      return `<img${attrs}>`;
-    }
+function resolveHeaderLogoMaxHeightPx(row = {}) {
+  return toFiniteNumber(row.Header_Logo_Max_Height_px, 50);
+}
 
-    return `<img${attrs} style="display:block; height:auto; width:auto; max-width:100%;">`;
+function pxToMm(px) {
+  return Math.round(Number(px) * 0.264583 * 10) / 10;
+}
+
+function mergeImgStyle(existingStyle = "", rules = []) {
+  let style = String(existingStyle || "")
+    .replace(/max-height\s*:\s*[^;]+;?/gi, "")
+    .replace(/max-width\s*:\s*[^;]+;?/gi, "")
+    .replace(/width\s*:\s*[^;]+;?/gi, "")
+    .replace(/height\s*:\s*[^;]+;?/gi, "")
+    .replace(/display\s*:\s*[^;]+;?/gi, "")
+    .replace(/;;+/g, ";")
+    .trim();
+
+  const merged = [...rules, style].filter(Boolean).join("; ").replace(/;\s*;/g, ";");
+  return merged.endsWith(";") ? merged : `${merged};`;
+}
+
+function normalizeHeaderImages(html = "", maxHeightPx = 50) {
+  return String(html || "").replace(/<img\b([^>]*)>/gi, (_match, attrs) => {
+    let nextAttrs = String(attrs || "")
+      .replace(/\sheight=(["'])[^"']*\1/gi, "")
+      .replace(/\sheight=\S+/gi, "")
+      .replace(/\swidth=(["'])[^"']*\1/gi, "")
+      .replace(/\swidth=\S+/gi, "");
+
+    const imgStyle = mergeImgStyle(
+      (nextAttrs.match(/\sstyle=(["'])(.*?)\1/i) || [])[2] || "",
+      [
+        "display:block",
+        `max-height:${maxHeightPx}px`,
+        "max-width:220px",
+        "width:auto",
+        "height:auto"
+      ]
+    );
+
+    nextAttrs = nextAttrs.replace(/\sstyle=(["'])(.*?)\1/gi, "");
+    return `<img${nextAttrs} style="${imgStyle}">`;
   });
 }
 
-function normalizeHeaderHtml(html = "") {
-  return normalizeHeaderImages(String(html || "").trim());
+function normalizeHeaderHtml(html = "", maxHeightPx = 50) {
+  return normalizeHeaderImages(String(html || "").trim(), maxHeightPx);
 }
 
-function buildHeaderLogoImg(url, { align = "left" } = {}) {
+function buildHeaderLogoImg(url, { align = "left", maxHeightPx = 50, maxWidthPx = 220 } = {}) {
   if (!url) return "";
 
   const alignStyle = align === "right" ? "margin-left:auto;" : "";
-  return `<img src="${url}" style="display:block; ${alignStyle} width:auto; height:auto; max-width:100%;" />`;
+  return `<img src="${url}" alt="" style="display:block; ${alignStyle} max-height:${maxHeightPx}px; max-width:${maxWidthPx}px; width:auto; height:auto;" />`;
 }
 function buildDefaultRefexTextLogoHtml() {
   return `
-    <div style="text-align:right; width:100%; font-size:24px; font-weight:800; font-style:italic; letter-spacing:-1px; line-height:1.1;">
+    <div style="text-align:right; width:100%; font-size:18px; font-weight:800; font-style:italic; letter-spacing:-1px; line-height:1.1;">
       <span style="color:#2e3192;">r</span><span style="color:#27aae1;">e</span><span style="color:#39b54a;">f</span><span style="color:#8dc63f;">e</span><span style="color:#f7941d;">x</span>
     </div>
   `;
@@ -195,20 +238,20 @@ function toFiniteNumber(value, fallback) {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-function buildHeaderHtmlFromLogoUrls(row = {}, logoSources = {}) {
+function buildHeaderHtmlFromLogoUrls(row = {}, logoSources = {}, maxLogoHeightPx = 50) {
   const leftUrl = cleanUrl(logoSources.left || row.Header_Left_Logo_URL);
   const rightUrl = cleanUrl(logoSources.right || row.Header_Right_Logo_URL);
 
   if (!leftUrl && !rightUrl) return "";
 
-  const leftLogo = buildHeaderLogoImg(leftUrl, { align: "left" });
-  const rightLogo = buildHeaderLogoImg(rightUrl, { align: "right" });
+  const leftLogo = buildHeaderLogoImg(leftUrl, { align: "left", maxHeightPx: maxLogoHeightPx, maxWidthPx: 240 });
+  const rightLogo = buildHeaderLogoImg(rightUrl, { align: "right", maxHeightPx: maxLogoHeightPx, maxWidthPx: 180 });
 
   return wrapPlaywrightTemplate(`
-    <table style="width:100%; border-collapse:collapse; font-size:10px;">
+    <table style="width:100%; border-collapse:collapse; table-layout:fixed; font-size:10px;">
       <tr>
-        <td style="width:50%; text-align:left; vertical-align:middle; padding:0;">${leftLogo}</td>
-        <td style="width:50%; text-align:right; vertical-align:middle; padding:0;">${rightLogo || buildDefaultRefexTextLogoHtml()}</td>
+        <td style="width:58%; text-align:left; vertical-align:middle; padding:0; overflow:hidden;">${leftLogo}</td>
+        <td style="width:42%; text-align:right; vertical-align:middle; padding:0; overflow:hidden;">${rightLogo || buildDefaultRefexTextLogoHtml()}</td>
       </tr>
     </table>
   `, "header");
@@ -314,9 +357,13 @@ function mapLetterhead(row = {}, baseUrl = "", logoSources = {}) {
   const configuredMarginBottom = Number(row.Margin_Bottom_mm || 0);
   const configuredFooterHeight = Number(row.Footer_Height_mm || 0);
   const headerHeightMm = toFiniteNumber(row.Header_Height_mm, 18);
+  const maxLogoHeightPx = resolveHeaderLogoMaxHeightPx(row);
 
-  const generatedHeaderHtml = buildHeaderHtmlFromLogoUrls(row, logoSources);
-  const fallbackHeaderHtml = normalizeHeaderHtml(normalizeHtmlAssetUrls(row.Header_HTML || "", baseUrl));
+  const generatedHeaderHtml = buildHeaderHtmlFromLogoUrls(row, logoSources, maxLogoHeightPx);
+  const fallbackHeaderHtml = normalizeHeaderHtml(
+    normalizeHtmlAssetUrls(row.Header_HTML || "", baseUrl),
+    maxLogoHeightPx
+  );
   const rawHeaderHtml = generatedHeaderHtml || wrapPlaywrightTemplate(fallbackHeaderHtml || buildDefaultRefexTextLogoHtml(), "header");
 
   const footerSourceHtml = normalizeHtmlAssetUrls(row.Footer_HTML || "", baseUrl) || buildDefaultRefexFooterHtml();
@@ -326,11 +373,12 @@ function mapLetterhead(row = {}, baseUrl = "", logoSources = {}) {
     ? configuredFooterHeight
     : estimateFooterHeightMm(footerSourceHtml);
 
-  const estimatedHeaderHeightMm = estimateHeaderHeightMm(rawHeaderHtml, headerHeightMm);
+  const estimatedHeaderHeightMm = estimateHeaderHeightMm(rawHeaderHtml, headerHeightMm, maxLogoHeightPx);
 
   const safeMarginTop = Math.max(
     Number.isFinite(configuredMarginTop) && configuredMarginTop > 0 ? configuredMarginTop : 22,
-    estimatedHeaderHeightMm + 10
+    estimatedHeaderHeightMm + 14,
+    pxToMm(maxLogoHeightPx) + 16
   );
 
   const safeMarginBottom = Math.max(
@@ -350,7 +398,7 @@ function mapLetterhead(row = {}, baseUrl = "", logoSources = {}) {
     margin_bottom_mm: safeMarginBottom,
     header_height_mm: estimatedHeaderHeightMm,
     footer_height_mm: estimatedFooterHeightMm,
-    header_logo_max_height_px: toFiniteNumber(row.Header_Logo_Max_Height_px, 45),
+    header_logo_max_height_px: maxLogoHeightPx,
     header_left_logo_url_set: Boolean(cleanUrl(logoSources.left || row.Header_Left_Logo_URL)),
     header_right_logo_url_set: Boolean(cleanUrl(logoSources.right || row.Header_Right_Logo_URL)),
     header_left_logo_source: logoSources.left_source || (cleanUrl(row.Header_Left_Logo_URL) ? "url_field" : "none"),
@@ -396,8 +444,9 @@ module.exports = {
   buildHeaderLogoImg,
   estimateFooterHeightMm,
   estimateHeaderHeightMm,
-  cleanUrl,
-  buildHeaderHtmlFromLogoUrls,
+  resolveHeaderLogoMaxHeightPx,
+  pxToMm,
+  mergeImgStyle,
   embedRemoteImagesAsDataUris,
   mapLetterhead,
   mapLetterheadForPdf

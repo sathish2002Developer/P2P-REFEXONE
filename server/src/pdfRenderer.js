@@ -20,6 +20,7 @@ async function renderHtmlToPdfBuffer({
   footerHtml = "",
   marginTopMm = 20,
   marginBottomMm = 25,
+  headerHeightMm = 0,
   footerHeightMm = 0
 }) {
   if (!html || typeof html !== "string") {
@@ -31,7 +32,12 @@ async function renderHtmlToPdfBuffer({
   const hasHeaderFooter = hasHeader || hasFooter;
 
   const estimatedFooterReserve = footerHeightMm > 0 ? footerHeightMm + 18 : 0;
-  const safeMarginTop = Math.max(Number(marginTopMm) || 20, hasHeader ? 22 : 15);
+  const estimatedHeaderReserve = headerHeightMm > 0 ? headerHeightMm + 14 : 0;
+  const safeMarginTop = Math.max(
+    Number(marginTopMm) || 20,
+    estimatedHeaderReserve,
+    hasHeader ? 30 : 15
+  );
   const safeMarginBottom = Math.max(
     Number(marginBottomMm) || 25,
     estimatedFooterReserve,

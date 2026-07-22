@@ -168,15 +168,25 @@ function buildPoStyles(_footerReserveMm = 50) {
       font-weight: bold;
       font-size: 16px;
       letter-spacing: 1px;
-      margin: 10px 0 14px 0;
+      margin: 2px 0 12px 0;
     }
 
     .po-meta {
-      display: flex;
-      justify-content: space-between;
+      display: table;
+      width: 100%;
       font-weight: bold;
       margin-bottom: 10px;
       font-size: 13px;
+    }
+    .po-meta span:first-child {
+      display: table-cell;
+      text-align: left;
+      width: 50%;
+    }
+    .po-meta span:last-child {
+      display: table-cell;
+      text-align: right;
+      width: 50%;
     }
 
     .info-box {

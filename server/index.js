@@ -461,6 +461,7 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
       footerHtml: mappedLetterhead?.footer_html || footer_html,
       marginTopMm: mappedLetterhead?.margin_top_mm || margin_top_mm,
       marginBottomMm: mappedLetterhead?.margin_bottom_mm || margin_bottom_mm,
+      headerHeightMm: mappedLetterhead?.header_height_mm || 0,
       footerHeightMm: mappedLetterhead?.footer_height_mm || 0
     });
 
