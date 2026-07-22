@@ -182,7 +182,8 @@ function buildPoStyles() {
 
     .terms-section,
     .annexure-section,
-    .special-notes-section {
+    .special-notes-section,
+    .vendor-ack-section {
       page-break-before: always;
       break-before: page;
       margin-top: 0;
@@ -261,7 +262,7 @@ function buildPoStyles() {
     .ack-box {
       border: 1px solid #000;
       padding: 12px 16px;
-      margin-top: 16px;
+      margin-top: 0;
       page-break-inside: avoid;
       break-inside: avoid;
     }

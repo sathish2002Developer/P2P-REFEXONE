@@ -313,7 +313,9 @@ function buildSpecialNotesHtml(po = {}, tokens = {}) {
       Name: Mr. Rajeev Vaze<br>
       Designation: Head – SCM</p>
     </div>
+    </section>
 
+    <section class="vendor-ack-section">
     <div class="ack-box">
       <p><strong>Acknowledgment and Acceptance by Seller/Supplier</strong></p>
       <p>We received, read, and understood the terms and conditions mentioned in this order. We hereby acknowledge, confirm and accept the above terms and conditions and the same shall be binding on us as &ldquo;Seller&rdquo;.</p>

@@ -27,19 +27,77 @@ function wrapPlaywrightTemplate(innerHtml = "", slot = "body") {
     return content;
   }
 
+  const isFooter = slot === "footer";
+  const horizontalPadding = isFooter ? "0" : "0 10mm";
+
   return `
     <div data-playwright-template="${slot}" style="
       width:100%;
+      max-width:100%;
       margin:0;
-      padding:0 10mm;
+      padding:${horizontalPadding};
       box-sizing:border-box;
       font-family:Arial,Helvetica,sans-serif;
       -webkit-print-color-adjust:exact;
       print-color-adjust:exact;
+      overflow:hidden;
     ">
-      <div style="width:100%; font-size:10px; line-height:1.35; color:#1a1a1a;">
+      <div style="
+        width:100%;
+        max-width:100%;
+        margin:0 auto;
+        text-align:${isFooter ? "center" : "left"};
+        font-size:10px;
+        line-height:1.35;
+        color:#1a1a1a;
+        box-sizing:border-box;
+      ">
         ${content}
       </div>
+    </div>
+  `;
+}
+
+function sanitizeInlineStyle(style = "", { isFooter = false } = {}) {
+  let next = String(style || "");
+
+  if (isFooter) {
+    next = next
+      .replace(/position\s*:\s*(absolute|fixed)/gi, "position:relative")
+      .replace(/float\s*:\s*(left|right)/gi, "float:none")
+      .replace(/text-align\s*:\s*right/gi, "text-align:center")
+      .replace(/margin-left\s*:\s*[^;]+;?/gi, "")
+      .replace(/margin-right\s*:\s*[^;]+;?/gi, "")
+      .replace(/\bleft\s*:\s*[^;]+;?/gi, "")
+      .replace(/\bright\s*:\s*[^;]+;?/gi, "")
+      .replace(/transform\s*:\s*[^;]+;?/gi, "");
+  }
+
+  next = next
+    .replace(/width\s*:\s*(\d+(?:\.\d+)?)px/gi, (_match, px) => {
+      return Number(px) > 620 ? "max-width:100%; width:auto" : `width:${px}px`;
+    })
+    .replace(/min-width\s*:\s*[^;]+;?/gi, "")
+    .replace(/;;+/g, ";")
+    .replace(/^\s*;\s*|\s*;\s*$/g, "")
+    .trim();
+
+  return next;
+}
+
+function normalizeFooterLayout(html = "") {
+  let output = String(html || "");
+
+  output = output.replace(/\sstyle=(["'])(.*?)\1/gi, (_match, quote, style) => {
+    const sanitized = sanitizeInlineStyle(style, { isFooter: true });
+    return sanitized ? ` style=${quote}${sanitized}${quote}` : "";
+  });
+
+  output = output.replace(/\salign=(["'])right\1/gi, ' align="center"');
+
+  return `
+    <div style="width:100%; max-width:100%; margin:0 auto; padding:0; text-align:center; box-sizing:border-box; overflow:hidden;">
+      ${output}
     </div>
   `;
 }
@@ -203,22 +261,31 @@ async function embedRemoteImagesAsDataUris(html = "") {
 function normalizeFooterImages(html = "") {
   return String(html || "").replace(/<img\b([^>]*)>/gi, (_match, attrs) => {
     if (/\sstyle\s*=/i.test(attrs)) {
-      return `<img${attrs}>`;
+      return `<img${attrs.replace(/\sstyle=(["'])(.*?)\1/i, (_styleMatch, quote, style) => {
+        const sanitized = sanitizeInlineStyle(style, { isFooter: true });
+        const merged = [sanitized, "display:block", "margin:0 auto", "max-width:100%", "height:auto"]
+          .filter(Boolean)
+          .join("; ")
+          .replace(/;\s*;/g, ";");
+        return ` style=${quote}${merged}${quote}`;
+      })}>`;
     }
 
-    return `<img${attrs} style="display:block; margin:0 auto;">`;
+    return `<img${attrs} style="display:block; margin:0 auto; max-width:100%; height:auto;">`;
   });
 }
 
 function normalizeFooterSize(html = "") {
   if (!html) return "";
 
-  let sizedHtml = normalizeFooterImages(String(html))
+  let sizedHtml = normalizeFooterLayout(
+    normalizeFooterImages(String(html))
+  )
     .replaceAll("{PAGENO}", '<span class="pageNumber"></span>')
     .replaceAll("{nb}", '<span class="totalPages"></span>')
     .replace(
       /<p[^>]*>\s*<span class=["']pageNumber["']><\/span>\s*[-–]\s*<span class=["']totalPages["']><\/span>\s*<\/p>/gi,
-      '<div style="text-align:center; font-size:11px; margin-top:8px;"><span class="pageNumber"></span>-<span class="totalPages"></span></div>'
+      '<div style="text-align:center; font-size:11px; margin-top:8px; width:100%;"><span class="pageNumber"></span>-<span class="totalPages"></span></div>'
     );
 
   const hasPageNumber = /class=["']pageNumber["']|class=["']totalPages["']|\{PAGENO\}|\{nb\}/i.test(sizedHtml);
@@ -227,7 +294,7 @@ function normalizeFooterSize(html = "") {
     : `<div style="text-align:center; font-size:11px; margin-top:8px; width:100%;"><span class="pageNumber"></span>-<span class="totalPages"></span></div>`;
 
   return wrapPlaywrightTemplate(`
-    <div style="width:100%; position:relative; font-size:8px; padding-top:5px; text-align:center;">
+    <div style="width:100%; max-width:100%; margin:0 auto; padding-top:5px; text-align:center; box-sizing:border-box;">
       ${sizedHtml}
       ${pageNumberHtml}
     </div>
@@ -300,6 +367,8 @@ async function mapLetterheadForPdf(row = {}, baseUrl = "", tokenData = {}) {
 module.exports = {
   normalizeHtmlAssetUrls,
   normalizeFooterSize,
+  normalizeFooterLayout,
+  sanitizeInlineStyle,
   wrapPlaywrightTemplate,
   buildLetterheadTokens,
   buildDefaultRefexTextLogoHtml,

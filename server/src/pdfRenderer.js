@@ -3,7 +3,9 @@ const { wrapPlaywrightTemplate } = require("./letterheadMapper");
 
 function prepareTemplateHtml(html = "", slot = "body") {
   const content = String(html || "").trim();
-  if (!content) return "<div></div>";
+  if (!content) {
+    return '<div style="font-size:10px; width:100%; margin:0; padding:0;"></div>';
+  }
   if (content.includes("data-playwright-template")) return content;
   return wrapPlaywrightTemplate(content, slot);
 }
