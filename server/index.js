@@ -10,7 +10,7 @@ const { mapAnnexureMaster } = require("./src/annexureMapper");
 const { getPurchaseOrderInstance, updatePurchaseOrderInstance } = require("./src/kissflowProcesses");
 const { buildPurchaseOrderBodyHtml, mapProcessTermsRows, mapProcessAnnexureRows, mapAllAnnexureImageRows } = require("./src/poMapper");
 const { mapLetterhead, mapLetterheadForPdf } = require("./src/letterheadMapper");
-const { resolveAnnexure1ImageRows, parseProcessAttachmentKey } = require("./src/kissflowImageFetch");
+const { resolveAnnexure1ImageRows, parseProcessAttachmentKey, clearAttachmentCache } = require("./src/kissflowImageFetch");
 
 function formatRunTimestampForFilename(date = new Date()) {
   const pad = (value) => String(value).padStart(2, "0");
@@ -455,6 +455,8 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
     } catch (_error) {
       annexureImageCredentials = {};
     }
+
+    clearAttachmentCache();
 
     const resolvedAnnexure1Rows = await resolveAnnexure1ImageRows(processAnnexure1Rows, {
       baseUrl: config.kissflow.baseUrl,

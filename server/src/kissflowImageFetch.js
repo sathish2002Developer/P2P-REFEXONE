@@ -167,15 +167,28 @@ function buildAttachmentDownloadUrls({
   return [...new Set(urls.filter(Boolean))];
 }
 
+function buildAttachmentFingerprint(image = {}) {
+  if (!image || typeof image !== "object") {
+    return "";
+  }
+
+  return [
+    image.id || "",
+    image.key || "",
+    image.name || "",
+    image.size ?? "",
+    image.uploaded ?? "",
+    image.fileExtension || ""
+  ].join("|");
+}
+
 function buildCacheKey(image = {}, context = {}) {
   return [
     context.dataformId || "",
     context.instanceId || "",
     context.fieldId || "",
     context.activityInstanceId || "",
-    image.id || "",
-    image.key || "",
-    image.name || ""
+    buildAttachmentFingerprint(image)
   ].join(":");
 }
 
@@ -301,6 +314,7 @@ async function downloadProcessImageFieldBuffer({
   activityInstanceId = "",
   tableId = "",
   rowId = "",
+  attachment = null,
   credentials = {}
 } = {}) {
   const config = getConfig();
@@ -316,15 +330,23 @@ async function downloadProcessImageFieldBuffer({
   });
 
   let lastError = null;
+  const cacheBuster = buildAttachmentFingerprint(attachment);
 
   for (const template of pathTemplates) {
-    const path = template.replace("{accountId}", accountId);
+    let path = template.replace("{accountId}", accountId);
+
+    if (cacheBuster) {
+      path += `${path.includes("?") ? "&" : "?"}_v=${encodeURIComponent(cacheBuster)}`;
+    }
+
     const result = await kissflowFetch(buildKissflowUrl(path), {
       method: "GET",
       responseType: "buffer",
       credentials,
       headers: {
-        Accept: "application/octet-stream, image/*, */*"
+        Accept: "application/octet-stream, image/*, */*",
+        "Cache-Control": "no-cache, no-store",
+        Pragma: "no-cache"
       }
     }, {
       maxRetries: 1
@@ -378,6 +400,7 @@ async function fetchProcessImageFieldAsDataUri(options = {}) {
   }
 
   const config = getConfig();
+  const attachmentFingerprint = buildAttachmentFingerprint(options.attachment);
   const cacheKey = [
     "process-image-field",
     options.processId || config.kissflowModels.purchaseOrderProcessId,
@@ -385,7 +408,8 @@ async function fetchProcessImageFieldAsDataUri(options = {}) {
     options.fieldId || "",
     options.activityInstanceId || "",
     options.tableId || "",
-    options.rowId || ""
+    options.rowId || "",
+    attachmentFingerprint
   ].join(":");
 
   if (attachmentDataUriCache.has(cacheKey)) {
@@ -421,6 +445,7 @@ async function fetchAnnexureRowImageAsDataUri(row = {}, context = {}) {
     activityInstanceId,
     tableId,
     rowId,
+    attachment: row.image_attachment,
     credentials: context.credentials || {}
   });
 
@@ -447,13 +472,19 @@ async function fetchAnnexureRowImageAsDataUri(row = {}, context = {}) {
   };
 }
 
-async function fetchUrlAsDataUri(url, { maxRetries = 1, credentials = {} } = {}) {
-  const result = await kissflowFetch(url, {
+async function fetchUrlAsDataUri(url, { maxRetries = 1, credentials = {}, cacheBuster = "" } = {}) {
+  const requestUrl = cacheBuster
+    ? `${url}${url.includes("?") ? "&" : "?"}_v=${encodeURIComponent(cacheBuster)}`
+    : url;
+
+  const result = await kissflowFetch(requestUrl, {
     method: "GET",
     responseType: "buffer",
     credentials,
     headers: {
-      Accept: "application/octet-stream, image/*, */*"
+      Accept: "application/octet-stream, image/*, */*",
+      "Cache-Control": "no-cache, no-store",
+      Pragma: "no-cache"
     }
   }, {
     maxRetries
@@ -512,6 +543,7 @@ async function fetchKissflowAttachmentAsDataUri(image = {}, context = {}) {
   const fieldId = context.fieldId || "";
   const activityInstanceId = context.activityInstanceId || parsedKey?.activityInstanceId || "";
   const credentials = context.credentials || {};
+  const attachmentFingerprint = buildAttachmentFingerprint(image);
   const urls = buildAttachmentDownloadUrls({
     baseUrl,
     accountId,
@@ -528,7 +560,8 @@ async function fetchKissflowAttachmentAsDataUri(image = {}, context = {}) {
   for (const url of urls) {
     const dataUri = await fetchUrlAsDataUri(url, {
       maxRetries: 1,
-      credentials
+      credentials,
+      cacheBuster: attachmentFingerprint
     });
 
     if (dataUri) {
