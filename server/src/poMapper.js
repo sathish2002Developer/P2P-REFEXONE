@@ -414,9 +414,35 @@ function mapProcessAnnexureRows(po = {}, startSequenceNo = 1) {
     .filter((row) => row.header || row.terms_and_conditions);
 }
 
+function resolveAnnexureRowImageAttachment(row = {}) {
+  const fieldMap = [
+    ["Po_image", row.Po_image],
+    ["PO_Image", row.PO_Image],
+    ["po_image", row.po_image],
+    ["Image_1", row.Image_1],
+    ["Image", row.Image]
+  ];
+
+  for (const [fieldName, attachment] of fieldMap) {
+    if (attachment && typeof attachment === "object" && (attachment.key || attachment.id)) {
+      return { attachment, fieldName };
+    }
+  }
+
+  return { attachment: null, fieldName: "" };
+}
+
+function isAnnexureImageRow(row = {}) {
+  const type = String(row.Type || row.type || "").trim().toLowerCase();
+  if (type === "image") {
+    return true;
+  }
+
+  return Boolean(resolveAnnexureRowImageAttachment(row).attachment);
+}
+
 function normalizeAnnexure1RowType(row = {}) {
-  const type = String(row.Type || row.type || "Text").trim().toLowerCase();
-  return type === "image" ? "image" : "text";
+  return isAnnexureImageRow(row) ? "image" : "text";
 }
 
 function mapProcessAnnexure1Rows(po = {}, startSequenceNo = 1) {
@@ -425,16 +451,16 @@ function mapProcessAnnexure1Rows(po = {}, startSequenceNo = 1) {
   return rows
     .map((row, index) => {
       const rowType = normalizeAnnexure1RowType(row);
+      const { attachment: imageAttachment, fieldName: imageField } = resolveAnnexureRowImageAttachment(row);
 
-      if (rowType === "image") {
-        const imageAttachment = row.Image_1 || row.Image || null;
-
+      if (rowType === "image" && imageAttachment) {
         return {
           row_type: "image",
           sequence_no: startSequenceNo + index,
           page_hint: String(row.page || row.Page || "").trim(),
           image_attachment: imageAttachment,
-          image_name: imageAttachment?.name || "",
+          image_field: imageField,
+          image_name: imageAttachment.name || "",
           image_data_uri: "",
           image_loaded: false,
           source_row_id: row._id || null,
@@ -470,6 +496,8 @@ module.exports = {
   mapProcessTermsRows,
   mapProcessAnnexureRows,
   mapProcessAnnexure1Rows,
+  resolveAnnexureRowImageAttachment,
+  isAnnexureImageRow,
   buildPriceScheduleHtml,
   buildSpecialNotesHtml,
   buildPurchaseOrderBodyHtml

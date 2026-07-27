@@ -37,6 +37,7 @@ function buildAttachmentDownloadUrls({
 
   if (key) {
     urls.push(`${cleanBase}/attachment/2/${accountId}/${encodeURIComponent(key)}`);
+    urls.push(`${cleanBase}/attachment/2/${accountId}/${key}`);
   }
 
   if (attachmentId && processId && instanceId) {

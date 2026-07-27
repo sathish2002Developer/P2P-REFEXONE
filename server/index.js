@@ -595,7 +595,10 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
         process_rows_count: processAnnexure1Rows.length,
         image_rows_count: annexure1ImageCount,
         images_loaded_count: annexure1ImagesLoaded,
-        images_rendered: annexure1ImagesLoaded > 0
+        images_rendered: annexure1ImagesLoaded > 0,
+        image_fields: finalAnnexure1Rows
+          .filter((row) => row.row_type === "image")
+          .map((row) => row.image_field || "unknown")
       },
       gcs_object_field_updated: gcsObjectFieldUpdated,
       bytes: pdfBuffer.length,
