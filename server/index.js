@@ -489,7 +489,8 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
       annexure1Rows: finalAnnexure1Rows,
       tokenData: mergedTokenData,
       afterAnnexureHtml: mappedPo.specialNotesHtml || "",
-      footerReserveMm: mappedLetterhead?.margin_bottom_mm || margin_bottom_mm || 52
+      marginTopMm: mappedLetterhead?.margin_top_mm || margin_top_mm || 30,
+      marginBottomMm: mappedLetterhead?.margin_bottom_mm || margin_bottom_mm || 55
     });
 
     const pdfBuffer = await renderHtmlToPdfBuffer({

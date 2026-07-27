@@ -94,7 +94,9 @@ function buildAnnexure1ImagePages(rows = []) {
 
     return `
       <section class="annexure-image-section">
-        <img src="${row.image_data_uri}" alt="${alt}" class="annexure-full-image" />
+        <div class="annexure-image-frame">
+          <img src="${row.image_data_uri}" alt="${alt}" class="annexure-full-image" />
+        </div>
       </section>
     `;
   }).join("");
@@ -133,7 +135,12 @@ function buildAnnexureITable(rows = [], data = {}) {
   `;
 }
 
-function buildPoStyles(_footerReserveMm = 50) {
+function buildPoStyles(marginTopMm = 30, marginBottomMm = 55) {
+  const pageHeightMm = 297;
+  const safeMarginTop = Math.max(Number(marginTopMm) || 30, 15);
+  const safeMarginBottom = Math.max(Number(marginBottomMm) || 55, 20);
+  const contentHeightMm = Math.max(pageHeightMm - safeMarginTop - safeMarginBottom, 160);
+
   return `
     @page {
       size: A4;
@@ -155,7 +162,6 @@ function buildPoStyles(_footerReserveMm = 50) {
     .po-body,
     .terms-section,
     .annexure-section,
-    .annexure-image-section,
     .special-notes-section,
     .vendor-ack-section {
       padding-bottom: 2mm;
@@ -286,7 +292,6 @@ function buildPoStyles(_footerReserveMm = 50) {
 
     .terms-section,
     .annexure-section,
-    .annexure-image-section,
     .special-notes-section,
     .vendor-ack-section {
       page-break-before: always;
@@ -295,20 +300,55 @@ function buildPoStyles(_footerReserveMm = 50) {
     }
 
     .annexure-image-section {
+      page-break-before: always;
+      page-break-after: always;
+      break-before: page;
+      break-after: page;
       page-break-inside: avoid;
       break-inside: avoid;
+      min-height: ${contentHeightMm}mm;
+      height: ${contentHeightMm}mm;
+      max-height: ${contentHeightMm}mm;
+      margin: 0;
       padding: 0;
-      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .annexure-to-notes-page-break {
+      display: block;
+      height: 0;
+      margin: 0;
+      padding: 0;
+      page-break-after: always;
+      break-after: page;
+    }
+
+    .annexure-image-section + .annexure-to-notes-page-break + .special-notes-section,
+    .annexure-image-section ~ .special-notes-section {
+      page-break-before: always;
+      break-before: page;
+    }
+
+    .annexure-image-frame {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .annexure-full-image {
       display: block;
-      width: 100%;
       max-width: 100%;
+      max-height: 100%;
+      width: auto;
       height: auto;
-      max-height: 210mm;
       margin: 0 auto;
       object-fit: contain;
+      object-position: center center;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -395,6 +435,22 @@ function buildPoStyles(_footerReserveMm = 50) {
   `;
 }
 
+function buildAfterAnnexureContent(afterAnnexureHtml = "", annexure1Rows = []) {
+  if (!afterAnnexureHtml) {
+    return "";
+  }
+
+  const hasAnnexureImages = annexure1Rows.some(
+    (row) => row.row_type === "image" && row.image_data_uri
+  );
+
+  if (!hasAnnexureImages) {
+    return afterAnnexureHtml;
+  }
+
+  return `<div class="annexure-to-notes-page-break" aria-hidden="true"></div>${afterAnnexureHtml}`;
+}
+
 function buildPoHtml({
   title = "PURCHASE ORDER",
   bodyHtml = "",
@@ -403,9 +459,13 @@ function buildPoHtml({
   annexure1Rows = [],
   tokenData = {},
   afterAnnexureHtml = "",
+  marginTopMm = 30,
+  marginBottomMm = 55,
   footerReserveMm = 50
 }) {
   const renderedBody = renderTemplate(bodyHtml, tokenData, { missingTokenMode: "keep" });
+  const resolvedMarginTop = Number(marginTopMm) || 30;
+  const resolvedMarginBottom = Number(marginBottomMm) || Number(footerReserveMm) || 55;
 
   return `
 <!doctype html>
@@ -413,7 +473,7 @@ function buildPoHtml({
 <head>
   <meta charset="utf-8" />
   <title>${escapeHtml(title)}</title>
-  <style>${buildPoStyles(footerReserveMm)}</style>
+  <style>${buildPoStyles(resolvedMarginTop, resolvedMarginBottom)}</style>
 </head>
 <body>
   <div class="title">${escapeHtml(title)}</div>
@@ -425,7 +485,7 @@ function buildPoHtml({
   ${buildAnnexure1TextTable(annexure1Rows, tokenData)}
   ${buildAnnexure1ImagePages(annexure1Rows)}
   ${buildAnnexure1MissingImagesNotice(annexure1Rows)}
-  ${afterAnnexureHtml || ""}
+  ${buildAfterAnnexureContent(afterAnnexureHtml, annexure1Rows)}
 </body>
 </html>
 `;
