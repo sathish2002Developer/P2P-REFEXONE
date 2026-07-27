@@ -464,6 +464,7 @@ function mapProcessAnnexure1Rows(po = {}, startSequenceNo = 1) {
           image_data_uri: "",
           image_loaded: false,
           source_row_id: row._id || null,
+          table_id: "ANNEXURE_1",
           source: "purchase_order_process_annexure_1"
         };
       }

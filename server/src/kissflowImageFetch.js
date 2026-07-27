@@ -1,5 +1,5 @@
 const { getConfig } = require("./config");
-const { buildKissflowAuthHeaders, kissflowFetch, isCloudflareChallenge } = require("./kissflowClient");
+const { buildKissflowUrl, buildKissflowAuthHeaders, kissflowFetch, isCloudflareChallenge } = require("./kissflowClient");
 
 const attachmentDataUriCache = new Map();
 let rateLimitedUntil = 0;
@@ -229,6 +229,224 @@ function resolveImageContentType(contentType = "", buffer) {
   return "";
 }
 
+function bufferToDataUri(buffer, contentType = "") {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    return "";
+  }
+
+  const resolvedType = resolveImageContentType(contentType, buffer);
+
+  if (!resolvedType) {
+    return "";
+  }
+
+  return `data:${resolvedType};base64,${buffer.toString("base64")}`;
+}
+
+function buildProcessImageFieldPaths({
+  processId = "",
+  instanceId = "",
+  fieldId = "",
+  activityInstanceId = "",
+  tableId = "",
+  rowId = ""
+}) {
+  const paths = [];
+  const cleanFieldId = String(fieldId || "").trim();
+  const cleanProcessId = String(processId || "").trim();
+  const cleanInstanceId = String(instanceId || "").trim();
+  const cleanActivityId = String(activityInstanceId || "").trim();
+  const cleanTableId = String(tableId || "").trim();
+  const cleanRowId = String(rowId || "").trim();
+
+  if (!cleanFieldId || !cleanProcessId || !cleanInstanceId) {
+    return paths;
+  }
+
+  if (cleanActivityId && cleanTableId && cleanRowId) {
+    const tableIds = [...new Set([cleanTableId, cleanTableId.startsWith("Table::") ? cleanTableId : `Table::${cleanTableId}`])];
+
+    for (const tableSegment of tableIds) {
+      paths.push(
+        `/process/2/{accountId}/admin/${cleanProcessId}/${cleanInstanceId}/${cleanActivityId}/${tableSegment}/${cleanRowId}/${cleanFieldId}/image`,
+        `/process/2/{accountId}/${cleanProcessId}/${cleanInstanceId}/${cleanActivityId}/${tableSegment}/${cleanRowId}/${cleanFieldId}/image`
+      );
+    }
+  }
+
+  const poLevelPaths = [
+    `/process/2/{accountId}/admin/${cleanProcessId}/${cleanInstanceId}/${cleanFieldId}/image`,
+    `/process/2/{accountId}/${cleanProcessId}/${cleanInstanceId}/${cleanFieldId}/image`
+  ];
+  const activityPaths = cleanActivityId
+    ? [
+      `/process/2/{accountId}/admin/${cleanProcessId}/${cleanInstanceId}/${cleanActivityId}/${cleanFieldId}/image`,
+      `/process/2/{accountId}/${cleanProcessId}/${cleanInstanceId}/${cleanActivityId}/${cleanFieldId}/image`
+    ]
+    : [];
+
+  if (!cleanTableId && !cleanRowId) {
+    paths.push(...poLevelPaths, ...activityPaths);
+  } else {
+    paths.push(...activityPaths, ...poLevelPaths);
+  }
+
+  return [...new Set(paths)];
+}
+
+async function downloadProcessImageFieldBuffer({
+  instanceId,
+  fieldId,
+  processId = "",
+  activityInstanceId = "",
+  tableId = "",
+  rowId = "",
+  credentials = {}
+} = {}) {
+  const config = getConfig();
+  const effectiveProcessId = processId || config.kissflowModels.purchaseOrderProcessId;
+  const accountId = config.kissflow.accountId;
+  const pathTemplates = buildProcessImageFieldPaths({
+    processId: effectiveProcessId,
+    instanceId,
+    fieldId,
+    activityInstanceId,
+    tableId,
+    rowId
+  });
+
+  let lastError = null;
+
+  for (const template of pathTemplates) {
+    const path = template.replace("{accountId}", accountId);
+    const result = await kissflowFetch(buildKissflowUrl(path), {
+      method: "GET",
+      responseType: "buffer",
+      credentials,
+      headers: {
+        Accept: "application/octet-stream, image/*, */*"
+      }
+    }, {
+      maxRetries: 1
+    });
+
+    if (result.status === 429) {
+      markRateLimited();
+      return { buffer: null, contentType: "", path, ok: false };
+    }
+
+    const buffer = Buffer.isBuffer(result.body) ? result.body : Buffer.from(result.body || []);
+
+    if (!result.ok) {
+      const bodyPreview = buffer.toString("utf8", 0, 200);
+
+      if (isCloudflareChallenge(bodyPreview)) {
+        markRateLimited();
+      }
+
+      lastError = `${path} -> ${result.status} ${result.statusText}`;
+      continue;
+    }
+
+    const contentType = resolveImageContentType(result.headers.get("content-type") || "", buffer);
+
+    if (!contentType) {
+      lastError = `${path} -> unexpected content-type`;
+      continue;
+    }
+
+    return {
+      ok: true,
+      buffer,
+      contentType,
+      path
+    };
+  }
+
+  return {
+    ok: false,
+    buffer: null,
+    contentType: "",
+    path: pathTemplates[0]?.replace("{accountId}", accountId) || "",
+    error: lastError || "No process image field route succeeded"
+  };
+}
+
+async function fetchProcessImageFieldAsDataUri(options = {}) {
+  if (isRateLimited()) {
+    return "";
+  }
+
+  const config = getConfig();
+  const cacheKey = [
+    "process-image-field",
+    options.processId || config.kissflowModels.purchaseOrderProcessId,
+    options.instanceId || "",
+    options.fieldId || "",
+    options.activityInstanceId || "",
+    options.tableId || "",
+    options.rowId || ""
+  ].join(":");
+
+  if (attachmentDataUriCache.has(cacheKey)) {
+    return attachmentDataUriCache.get(cacheKey);
+  }
+
+  const result = await downloadProcessImageFieldBuffer(options);
+
+  if (!result.ok || !result.buffer) {
+    return "";
+  }
+
+  const dataUri = bufferToDataUri(result.buffer, result.contentType);
+
+  if (dataUri) {
+    attachmentDataUriCache.set(cacheKey, dataUri);
+  }
+
+  return dataUri;
+}
+
+async function fetchAnnexureRowImageAsDataUri(row = {}, context = {}) {
+  const parsedKey = parseProcessAttachmentKey(row.image_attachment?.key || "");
+  const fieldId = row.image_field || "Po_image";
+  const activityInstanceId = context.activityInstanceId || parsedKey?.activityInstanceId || "";
+  const tableId = row.table_id || (row.source === "purchase_order_process_annexure_1" ? "ANNEXURE_1" : "");
+  const rowId = row.source_row_id || "";
+
+  const processImageDataUri = await fetchProcessImageFieldAsDataUri({
+    processId: context.processId,
+    instanceId: context.instanceId,
+    fieldId,
+    activityInstanceId,
+    tableId,
+    rowId,
+    credentials: context.credentials || {}
+  });
+
+  if (processImageDataUri) {
+    return {
+      dataUri: processImageDataUri,
+      download_method: "process_image_field"
+    };
+  }
+
+  const attachmentDataUri = await fetchKissflowAttachmentAsDataUri(row.image_attachment, {
+    baseUrl: context.baseUrl,
+    processId: context.processId,
+    instanceId: context.instanceId,
+    fieldId,
+    activityInstanceId,
+    credentials: context.credentials || {},
+    rowId: row.source_row_id || ""
+  });
+
+  return {
+    dataUri: attachmentDataUri,
+    download_method: attachmentDataUri ? "attachment_url" : "none"
+  };
+}
+
 async function fetchUrlAsDataUri(url, { maxRetries = 1, credentials = {} } = {}) {
   const result = await kissflowFetch(url, {
     method: "GET",
@@ -331,21 +549,13 @@ async function resolveAnnexure1ImageRows(rows = [], context = {}) {
       continue;
     }
 
-    const parsedKey = parseProcessAttachmentKey(row.image_attachment?.key || "");
-    const dataUri = await fetchKissflowAttachmentAsDataUri(row.image_attachment, {
-      baseUrl: context.baseUrl,
-      processId: context.processId,
-      instanceId: context.instanceId,
-      fieldId: row.image_field || context.fieldId || "",
-      activityInstanceId: context.activityInstanceId || parsedKey?.activityInstanceId || "",
-      credentials: context.credentials || {},
-      rowId: row.source_row_id || ""
-    });
+    const { dataUri, download_method: downloadMethod } = await fetchAnnexureRowImageAsDataUri(row, context);
 
     resolved.push({
       ...row,
       image_data_uri: dataUri,
-      image_loaded: Boolean(dataUri)
+      image_loaded: Boolean(dataUri),
+      image_download_method: downloadMethod
     });
   }
 
@@ -413,6 +623,9 @@ module.exports = {
   buildAttachmentDownloadUrls,
   buildKissflowAuthHeaders,
   fetchKissflowAttachmentAsDataUri,
+  downloadProcessImageFieldBuffer,
+  fetchProcessImageFieldAsDataUri,
+  fetchAnnexureRowImageAsDataUri,
   resolveAnnexure1ImageRows,
   resolveLetterheadLogoSources,
   isKissflowHostUrl,
