@@ -14,14 +14,14 @@ function buildKissflowUrl(path) {
   return `${baseUrl}${cleanPath}`;
 }
 
-function buildKissflowAuthHeaders(extraHeaders = {}) {
+function buildKissflowAuthHeaders(extraHeaders = {}, credentials = {}) {
   const config = getConfig();
 
   return {
     Accept: "application/json, image/*, */*",
     "User-Agent": "Refex-P2P-PDF-Service/1.0",
-    "X-Access-Key-Id": config.kissflow.accessKeyId,
-    "X-Access-Key-Secret": config.kissflow.accessKeySecret,
+    "X-Access-Key-Id": credentials.accessKeyId || config.kissflow.accessKeyId,
+    "X-Access-Key-Secret": credentials.accessKeySecret || config.kissflow.accessKeySecret,
     ...extraHeaders
   };
 }
@@ -99,7 +99,7 @@ async function kissflowFetch(url, options = {}, retryOptions = {}) {
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     const response = await fetch(url, {
       method,
-      headers: buildKissflowAuthHeaders(options.headers || {}),
+      headers: buildKissflowAuthHeaders(options.headers || {}, options.credentials || {}),
       body: options.body
     });
 

@@ -125,5 +125,6 @@ async function attachPdfToProcessField({
 
 module.exports = {
   resolveActivityInstanceId,
+  resolveAttachmentCredentials,
   attachPdfToProcessField
 };

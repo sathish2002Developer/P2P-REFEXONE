@@ -44,59 +44,99 @@ function parseProcessAttachmentKey(key = "") {
   };
 }
 
+function buildFilenameVariants(...names) {
+  const variants = new Set();
+
+  for (const name of names) {
+    const value = String(name || "").trim();
+
+    if (!value) {
+      continue;
+    }
+
+    variants.add(value);
+    variants.add(value.replace(/ /g, "_"));
+    variants.add(value.replace(/_/g, " "));
+  }
+
+  return [...variants].filter(Boolean);
+}
+
+function buildProcessFieldAttachmentUrls({
+  cleanBase,
+  accountId,
+  processId,
+  instanceId,
+  activityInstanceId,
+  fieldId,
+  attachmentId,
+  filename = "",
+  imageName = ""
+}) {
+  if (!cleanBase || !accountId || !processId || !instanceId || !activityInstanceId || !fieldId || !attachmentId) {
+    return [];
+  }
+
+  const urls = [];
+  const filenames = buildFilenameVariants(filename, imageName);
+  const processPaths = [
+    `${cleanBase}/process/2/${accountId}/${processId}/${instanceId}/${activityInstanceId}/${fieldId}/attachment/${attachmentId}`,
+    `${cleanBase}/process/2/${accountId}/admin/${processId}/${instanceId}/${activityInstanceId}/${fieldId}/attachment/${attachmentId}`
+  ];
+
+  for (const path of processPaths) {
+    urls.push(path);
+
+    for (const file of filenames) {
+      urls.push(`${path}/${encodeURIComponent(file)}`);
+    }
+  }
+
+  return urls;
+}
+
 function buildAttachmentDownloadUrls({
   baseUrl = "",
   accountId = "",
   dataformId = "",
   processId = "",
   instanceId = "",
+  activityInstanceId = "",
+  fieldId = "",
   attachmentId = "",
   filename = "",
   key = ""
 }) {
   const cleanBase = String(baseUrl || "").replace(/\/+$/, "");
-  const urls = [];
   const parsedKey = parseProcessAttachmentKey(key);
+  const effectiveProcessId = parsedKey?.processId || processId;
+  const effectiveInstanceId = parsedKey?.instanceId || instanceId;
+  const effectiveActivityInstanceId = activityInstanceId || parsedKey?.activityInstanceId || "";
+  const effectiveAttachmentId = parsedKey?.attachmentId || attachmentId;
+  const effectiveFilename = parsedKey?.filename || filename;
+  const urls = [];
 
-  if (parsedKey) {
-    const encodedFilename = encodeURIComponent(parsedKey.filename || filename || "");
-    const effectiveProcessId = parsedKey.processId || processId;
-    const effectiveInstanceId = parsedKey.instanceId || instanceId;
-    const effectiveAttachmentId = parsedKey.attachmentId || attachmentId;
+  urls.push(
+    ...buildProcessFieldAttachmentUrls({
+      cleanBase,
+      accountId,
+      processId: effectiveProcessId,
+      instanceId: effectiveInstanceId,
+      activityInstanceId: effectiveActivityInstanceId,
+      fieldId,
+      attachmentId: effectiveAttachmentId,
+      filename: effectiveFilename,
+      imageName: filename
+    })
+  );
 
-    if (parsedKey.activityInstanceId && parsedKey.filename) {
-      urls.push(
-        `${cleanBase}/process/2/${accountId}/${effectiveProcessId}/${effectiveInstanceId}/${parsedKey.activityInstanceId}/attachment/${effectiveAttachmentId}/${encodedFilename}`,
-        `${cleanBase}/process/2/${accountId}/admin/${effectiveProcessId}/${effectiveInstanceId}/${parsedKey.activityInstanceId}/attachment/${effectiveAttachmentId}/${encodedFilename}`
-      );
-    }
-
-    if (parsedKey.filename) {
-      urls.push(
-        `${cleanBase}/process/2/${accountId}/${effectiveProcessId}/${effectiveInstanceId}/attachment/${effectiveAttachmentId}/${encodedFilename}`,
-        `${cleanBase}/process/2/${accountId}/admin/${effectiveProcessId}/${effectiveInstanceId}/attachment/${effectiveAttachmentId}/${encodedFilename}`
-      );
-    }
-
-    urls.push(
-      `${cleanBase}/process/2/${accountId}/${effectiveProcessId}/${effectiveInstanceId}/attachment/${effectiveAttachmentId}`,
-      `${cleanBase}/process/2/${accountId}/admin/${effectiveProcessId}/${effectiveInstanceId}/attachment/${effectiveAttachmentId}`
-    );
+  if (effectiveAttachmentId) {
+    urls.push(`${cleanBase}/attachment/2/${accountId}/${effectiveAttachmentId}`);
   }
 
   if (key) {
     urls.push(`${cleanBase}/attachment/2/${accountId}/${key}`);
-    urls.push(`${cleanBase}/attachment/2/${accountId}/${encodeURIComponent(key)}`);
   }
-
-  if (attachmentId) {
-    urls.push(`${cleanBase}/attachment/2/${accountId}/${attachmentId}`);
-  }
-
-  const effectiveProcessId = parsedKey?.processId || processId;
-  const effectiveInstanceId = parsedKey?.instanceId || instanceId;
-  const effectiveAttachmentId = parsedKey?.attachmentId || attachmentId;
-  const effectiveFilename = parsedKey?.filename || filename;
 
   if (effectiveAttachmentId && effectiveProcessId && effectiveInstanceId) {
     if (effectiveFilename) {
@@ -131,6 +171,8 @@ function buildCacheKey(image = {}, context = {}) {
   return [
     context.dataformId || "",
     context.instanceId || "",
+    context.fieldId || "",
+    context.activityInstanceId || "",
     image.id || "",
     image.key || "",
     image.name || ""
@@ -149,12 +191,51 @@ function isImageContentType(contentType = "") {
   return String(contentType || "").toLowerCase().startsWith("image/");
 }
 
-async function fetchUrlAsDataUri(url, { maxRetries = 1 } = {}) {
+function detectImageMimeType(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4) {
+    return "";
+  }
+
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+    return "image/png";
+  }
+
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+    return "image/jpeg";
+  }
+
+  if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) {
+    return "image/gif";
+  }
+
+  if (buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46) {
+    return "image/webp";
+  }
+
+  return "";
+}
+
+function resolveImageContentType(contentType = "", buffer) {
+  const normalized = String(contentType || "").toLowerCase().split(";")[0].trim();
+
+  if (normalized.startsWith("image/")) {
+    return normalized;
+  }
+
+  if (normalized === "application/octet-stream" || !normalized) {
+    return detectImageMimeType(buffer);
+  }
+
+  return "";
+}
+
+async function fetchUrlAsDataUri(url, { maxRetries = 1, credentials = {} } = {}) {
   const result = await kissflowFetch(url, {
     method: "GET",
     responseType: "buffer",
+    credentials,
     headers: {
-      Accept: "image/*, */*"
+      Accept: "application/octet-stream, image/*, */*"
     }
   }, {
     maxRetries
@@ -175,13 +256,14 @@ async function fetchUrlAsDataUri(url, { maxRetries = 1 } = {}) {
     return "";
   }
 
-  const contentType = result.headers.get("content-type") || "";
+  const buffer = Buffer.isBuffer(result.body) ? result.body : Buffer.from(result.body || []);
+  const contentType = resolveImageContentType(result.headers.get("content-type") || "", buffer);
 
-  if (!isImageContentType(contentType)) {
+  if (!contentType || buffer.length === 0) {
     return "";
   }
 
-  const base64 = Buffer.from(result.body).toString("base64");
+  const base64 = buffer.toString("base64");
 
   return `data:${contentType};base64,${base64}`;
 }
@@ -209,19 +291,27 @@ async function fetchKissflowAttachmentAsDataUri(image = {}, context = {}) {
   const instanceId = context.instanceId || context.rowId || "";
   const key = primaryAttachmentKey(image, dataformId);
   const parsedKey = parseProcessAttachmentKey(key);
+  const fieldId = context.fieldId || "";
+  const activityInstanceId = context.activityInstanceId || parsedKey?.activityInstanceId || "";
+  const credentials = context.credentials || {};
   const urls = buildAttachmentDownloadUrls({
     baseUrl,
     accountId,
     dataformId,
     processId: parsedKey?.processId || processId,
     instanceId: parsedKey?.instanceId || instanceId,
+    activityInstanceId,
+    fieldId,
     attachmentId: parsedKey?.attachmentId || image.id,
     filename: parsedKey?.filename || image.name,
     key
   });
 
   for (const url of urls) {
-    const dataUri = await fetchUrlAsDataUri(url, { maxRetries: 1 });
+    const dataUri = await fetchUrlAsDataUri(url, {
+      maxRetries: 1,
+      credentials
+    });
 
     if (dataUri) {
       attachmentDataUriCache.set(cacheKey, dataUri);
@@ -241,10 +331,14 @@ async function resolveAnnexure1ImageRows(rows = [], context = {}) {
       continue;
     }
 
+    const parsedKey = parseProcessAttachmentKey(row.image_attachment?.key || "");
     const dataUri = await fetchKissflowAttachmentAsDataUri(row.image_attachment, {
       baseUrl: context.baseUrl,
       processId: context.processId,
       instanceId: context.instanceId,
+      fieldId: row.image_field || context.fieldId || "",
+      activityInstanceId: context.activityInstanceId || parsedKey?.activityInstanceId || "",
+      credentials: context.credentials || {},
       rowId: row.source_row_id || ""
     });
 

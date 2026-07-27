@@ -3,14 +3,14 @@ const { getConfig } = require("./src/config");
 const { buildPoHtml } = require("./src/poHtmlBuilder");
 const { renderHtmlToPdfBuffer } = require("./src/pdfRenderer");
 const { uploadPdfBuffer } = require("./src/gcs");
-const { resolveActivityInstanceId, attachPdfToProcessField } = require("./src/kissflowAttachments");
+const { resolveActivityInstanceId, resolveAttachmentCredentials, attachPdfToProcessField } = require("./src/kissflowAttachments");
 const { getAccountProbe, kfRequest } = require("./src/kissflowClient");
 const { probeMasterDataforms, getDataformItem, findCompanyLetterhead, findCompanyLetterheadByCode, findAnnexureMasterByPoType } = require("./src/kissflowDataforms");
 const { mapAnnexureMaster } = require("./src/annexureMapper");
 const { getPurchaseOrderInstance, updatePurchaseOrderInstance } = require("./src/kissflowProcesses");
 const { buildPurchaseOrderBodyHtml, mapProcessTermsRows, mapProcessAnnexureRows, mapAllAnnexureImageRows } = require("./src/poMapper");
 const { mapLetterhead, mapLetterheadForPdf } = require("./src/letterheadMapper");
-const { resolveAnnexure1ImageRows } = require("./src/kissflowImageFetch");
+const { resolveAnnexure1ImageRows, parseProcessAttachmentKey } = require("./src/kissflowImageFetch");
 
 function formatRunTimestampForFilename(date = new Date()) {
   const pad = (value) => String(value).padStart(2, "0");
@@ -435,10 +435,33 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
 
     const processAnnexure1Rows = mapAllAnnexureImageRows(poResult.data);
 
+    let annexureActivityInstanceId = "";
+
+    try {
+      annexureActivityInstanceId = resolveActivityInstanceId(poResult.data);
+    } catch (_error) {
+      const parsedKey = parseProcessAttachmentKey(poResult.data?.Po_image?.key || "");
+      annexureActivityInstanceId = parsedKey?.activityInstanceId || "";
+    }
+
+    let annexureImageCredentials = {};
+
+    try {
+      const resolvedCredentials = resolveAttachmentCredentials(config, poResult.data);
+      annexureImageCredentials = {
+        accessKeyId: resolvedCredentials.accessKeyId,
+        accessKeySecret: resolvedCredentials.accessKeySecret
+      };
+    } catch (_error) {
+      annexureImageCredentials = {};
+    }
+
     const resolvedAnnexure1Rows = await resolveAnnexure1ImageRows(processAnnexure1Rows, {
       baseUrl: config.kissflow.baseUrl,
       processId: config.kissflowModels.purchaseOrderProcessId,
-      instanceId: instance_id
+      instanceId: instance_id,
+      activityInstanceId: annexureActivityInstanceId,
+      credentials: annexureImageCredentials
     });
 
     // New source-of-truth rule:
