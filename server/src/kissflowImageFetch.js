@@ -22,6 +22,28 @@ function primaryAttachmentKey(image = {}, dataformId = "") {
   return "";
 }
 
+function parseProcessAttachmentKey(key = "") {
+  const parts = String(key || "").split("/").filter(Boolean);
+
+  if (parts.length < 4) {
+    return null;
+  }
+
+  const [processId, instanceId, activityInstanceId, attachmentId, ...filenameParts] = parts;
+
+  if (!processId || !instanceId || !attachmentId) {
+    return null;
+  }
+
+  return {
+    processId,
+    instanceId,
+    activityInstanceId: activityInstanceId || "",
+    attachmentId,
+    filename: filenameParts.join("/") || ""
+  };
+}
+
 function buildAttachmentDownloadUrls({
   baseUrl = "",
   accountId = "",
@@ -34,23 +56,59 @@ function buildAttachmentDownloadUrls({
 }) {
   const cleanBase = String(baseUrl || "").replace(/\/+$/, "");
   const urls = [];
+  const parsedKey = parseProcessAttachmentKey(key);
 
-  if (key) {
-    urls.push(`${cleanBase}/attachment/2/${accountId}/${encodeURIComponent(key)}`);
-    urls.push(`${cleanBase}/attachment/2/${accountId}/${key}`);
-  }
+  if (parsedKey) {
+    const encodedFilename = encodeURIComponent(parsedKey.filename || filename || "");
+    const effectiveProcessId = parsedKey.processId || processId;
+    const effectiveInstanceId = parsedKey.instanceId || instanceId;
+    const effectiveAttachmentId = parsedKey.attachmentId || attachmentId;
 
-  if (attachmentId && processId && instanceId) {
-    if (filename) {
+    if (parsedKey.activityInstanceId && parsedKey.filename) {
       urls.push(
-        `${cleanBase}/process/2/${accountId}/${processId}/${instanceId}/attachment/${attachmentId}/${encodeURIComponent(filename)}`,
-        `${cleanBase}/process/2/${accountId}/admin/${processId}/${instanceId}/attachment/${attachmentId}/${encodeURIComponent(filename)}`
+        `${cleanBase}/process/2/${accountId}/${effectiveProcessId}/${effectiveInstanceId}/${parsedKey.activityInstanceId}/attachment/${effectiveAttachmentId}/${encodedFilename}`,
+        `${cleanBase}/process/2/${accountId}/admin/${effectiveProcessId}/${effectiveInstanceId}/${parsedKey.activityInstanceId}/attachment/${effectiveAttachmentId}/${encodedFilename}`
+      );
+    }
+
+    if (parsedKey.filename) {
+      urls.push(
+        `${cleanBase}/process/2/${accountId}/${effectiveProcessId}/${effectiveInstanceId}/attachment/${effectiveAttachmentId}/${encodedFilename}`,
+        `${cleanBase}/process/2/${accountId}/admin/${effectiveProcessId}/${effectiveInstanceId}/attachment/${effectiveAttachmentId}/${encodedFilename}`
       );
     }
 
     urls.push(
-      `${cleanBase}/process/2/${accountId}/${processId}/${instanceId}/attachment/${attachmentId}`,
-      `${cleanBase}/process/2/${accountId}/admin/${processId}/${instanceId}/attachment/${attachmentId}`
+      `${cleanBase}/process/2/${accountId}/${effectiveProcessId}/${effectiveInstanceId}/attachment/${effectiveAttachmentId}`,
+      `${cleanBase}/process/2/${accountId}/admin/${effectiveProcessId}/${effectiveInstanceId}/attachment/${effectiveAttachmentId}`
+    );
+  }
+
+  if (key) {
+    urls.push(`${cleanBase}/attachment/2/${accountId}/${key}`);
+    urls.push(`${cleanBase}/attachment/2/${accountId}/${encodeURIComponent(key)}`);
+  }
+
+  if (attachmentId) {
+    urls.push(`${cleanBase}/attachment/2/${accountId}/${attachmentId}`);
+  }
+
+  const effectiveProcessId = parsedKey?.processId || processId;
+  const effectiveInstanceId = parsedKey?.instanceId || instanceId;
+  const effectiveAttachmentId = parsedKey?.attachmentId || attachmentId;
+  const effectiveFilename = parsedKey?.filename || filename;
+
+  if (effectiveAttachmentId && effectiveProcessId && effectiveInstanceId) {
+    if (effectiveFilename) {
+      urls.push(
+        `${cleanBase}/process/2/${accountId}/${effectiveProcessId}/${effectiveInstanceId}/attachment/${effectiveAttachmentId}/${encodeURIComponent(effectiveFilename)}`,
+        `${cleanBase}/process/2/${accountId}/admin/${effectiveProcessId}/${effectiveInstanceId}/attachment/${effectiveAttachmentId}/${encodeURIComponent(effectiveFilename)}`
+      );
+    }
+
+    urls.push(
+      `${cleanBase}/process/2/${accountId}/${effectiveProcessId}/${effectiveInstanceId}/attachment/${effectiveAttachmentId}`,
+      `${cleanBase}/process/2/${accountId}/admin/${effectiveProcessId}/${effectiveInstanceId}/attachment/${effectiveAttachmentId}`
     );
   }
 
@@ -150,14 +208,15 @@ async function fetchKissflowAttachmentAsDataUri(image = {}, context = {}) {
   const processId = context.processId || "";
   const instanceId = context.instanceId || context.rowId || "";
   const key = primaryAttachmentKey(image, dataformId);
+  const parsedKey = parseProcessAttachmentKey(key);
   const urls = buildAttachmentDownloadUrls({
     baseUrl,
     accountId,
     dataformId,
-    processId,
-    instanceId,
-    attachmentId: image.id,
-    filename: image.name,
+    processId: parsedKey?.processId || processId,
+    instanceId: parsedKey?.instanceId || instanceId,
+    attachmentId: parsedKey?.attachmentId || image.id,
+    filename: parsedKey?.filename || image.name,
     key
   });
 
@@ -256,6 +315,7 @@ function clearAttachmentCache() {
 module.exports = {
   fixAttachmentKey,
   primaryAttachmentKey,
+  parseProcessAttachmentKey,
   buildAttachmentDownloadUrls,
   buildKissflowAuthHeaders,
   fetchKissflowAttachmentAsDataUri,

@@ -8,7 +8,7 @@ const { getAccountProbe, kfRequest } = require("./src/kissflowClient");
 const { probeMasterDataforms, getDataformItem, findCompanyLetterhead, findCompanyLetterheadByCode, findAnnexureMasterByPoType } = require("./src/kissflowDataforms");
 const { mapAnnexureMaster } = require("./src/annexureMapper");
 const { getPurchaseOrderInstance, updatePurchaseOrderInstance } = require("./src/kissflowProcesses");
-const { buildPurchaseOrderBodyHtml, mapProcessTermsRows, mapProcessAnnexureRows, mapProcessAnnexure1Rows } = require("./src/poMapper");
+const { buildPurchaseOrderBodyHtml, mapProcessTermsRows, mapProcessAnnexureRows, mapAllAnnexureImageRows } = require("./src/poMapper");
 const { mapLetterhead, mapLetterheadForPdf } = require("./src/letterheadMapper");
 const { resolveAnnexure1ImageRows } = require("./src/kissflowImageFetch");
 
@@ -433,10 +433,7 @@ app.post("/generate-po-pdf/from-master", async (req, res) => {
       1
     );
 
-    const processAnnexure1Rows = mapProcessAnnexure1Rows(
-      poResult.data,
-      1
-    );
+    const processAnnexure1Rows = mapAllAnnexureImageRows(poResult.data);
 
     const resolvedAnnexure1Rows = await resolveAnnexure1ImageRows(processAnnexure1Rows, {
       baseUrl: config.kissflow.baseUrl,

@@ -487,6 +487,51 @@ function mapProcessAnnexure1Rows(po = {}, startSequenceNo = 1) {
     });
 }
 
+function mapPoLevelImageRow(po = {}, sequenceNo = 1) {
+  const { attachment, fieldName } = resolveAnnexureRowImageAttachment(po);
+
+  if (!attachment) {
+    return null;
+  }
+
+  return {
+    row_type: "image",
+    sequence_no: sequenceNo,
+    page_hint: "",
+    image_attachment: attachment,
+    image_field: fieldName,
+    image_name: attachment.name || "",
+    image_data_uri: "",
+    image_loaded: false,
+    source_row_id: po._id || null,
+    source: "purchase_order_po_image"
+  };
+}
+
+function mapAllAnnexureImageRows(po = {}) {
+  const tableRows = mapProcessAnnexure1Rows(po, 1);
+  const poLevelRow = mapPoLevelImageRow(po, tableRows.length + 1);
+
+  if (!poLevelRow) {
+    return tableRows;
+  }
+
+  const alreadyMappedFromTable = tableRows.some((row) => {
+    if (row.row_type !== "image") {
+      return false;
+    }
+
+    return row.image_attachment?.id === poLevelRow.image_attachment?.id
+      || row.image_attachment?.key === poLevelRow.image_attachment?.key;
+  });
+
+  if (alreadyMappedFromTable) {
+    return tableRows;
+  }
+
+  return [...tableRows, poLevelRow];
+}
+
 module.exports = {
   valueAt,
   cleanCurrency,
@@ -496,6 +541,8 @@ module.exports = {
   mapProcessTermsRows,
   mapProcessAnnexureRows,
   mapProcessAnnexure1Rows,
+  mapPoLevelImageRow,
+  mapAllAnnexureImageRows,
   resolveAnnexureRowImageAttachment,
   isAnnexureImageRow,
   buildPriceScheduleHtml,
